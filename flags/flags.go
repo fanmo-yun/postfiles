@@ -3,7 +3,10 @@ package flags
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"postfiles/api"
+	"strings"
 )
 
 type Arguments struct {
@@ -32,9 +35,21 @@ func (args *Arguments) Parser() {
 }
 
 func (args *Arguments) Handler() {
+	if args.IP == "" {
+		args.IP = api.GenIP()
+	} else if !api.IsvalidIP(args.IP) {
+		log.Fatalf("Ip incorrect: %s", args.IP)
+	}
 
+	if !api.IsvalidPort(args.Port) {
+		log.Fatalf("Ip incorrect: %d", args.Port)
+	}
 }
 
 func (args *Arguments) Run() {
-
+	if strings.ToLower(args.Type) == "server" {
+		// s := server.NewServer(args.IP, args.Port)
+		// s.ServerRun()
+		fmt.Printf("Server Start: %s:%d\n", args.IP, args.Port)
+	}
 }

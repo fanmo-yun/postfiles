@@ -7,5 +7,4 @@ func AppRun() {
 	app.Parser()
 	app.Handler()
 	app.Run()
-	println(app.Type, app.IP, app.Port)
 }

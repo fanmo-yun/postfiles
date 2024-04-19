@@ -52,5 +52,4 @@ func (server Server) ServerHandler(conn net.Conn) {
 		writer.Write(buf[:size])
 		writer.Flush()
 	}
-
 }
