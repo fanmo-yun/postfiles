@@ -1,6 +1,11 @@
 package api
 
-import "net"
+import (
+	"log"
+	"net"
+	"os"
+	"path/filepath"
+)
 
 func IsvalidIP(ip string) bool {
 	return net.ParseIP(ip) != nil
@@ -8,4 +13,12 @@ func IsvalidIP(ip string) bool {
 
 func IsvalidPort(port int) bool {
 	return port >= 1024 && port <= 65535
+}
+
+func FileStat(file string) (string, int64) {
+	info, statErr := os.Stat(file)
+	if os.IsNotExist(statErr) {
+		log.Fatalf("file: %s does not exist\n", file)
+	}
+	return filepath.Base(info.Name()), info.Size()
 }

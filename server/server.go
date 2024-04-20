@@ -1,9 +1,12 @@
 package server
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"postfiles/api"
 )
 
 type Server struct {
@@ -27,11 +30,27 @@ func (server Server) ServerRun(files []string) {
 			log.Panic(connErr)
 			continue
 		}
-		go server.ServerHandler(conn)
+		go server.serverhandler(conn, &files)
 	}
 }
 
-func (server Server) ServerHandler(conn net.Conn) {
+func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 	defer conn.Close()
 
+	writer := bufio.NewWriter(conn)
+
+	for _, value := range *fileList {
+		filename, filesize := api.FileStat(value)
+		_, writeErr := writer.Write(api.EncodeJSON(api.NewInfo(filename, filesize)))
+		if writeErr == io.EOF {
+			break
+		} else if writeErr != nil {
+			log.Fatal(writeErr)
+		}
+
+		if flushErr := writer.Flush(); flushErr != nil {
+			log.Fatal(flushErr)
+		}
+
+	}
 }
