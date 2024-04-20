@@ -1,9 +1,14 @@
 package client
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
+	"postfiles/api"
 )
 
 type Client struct {
@@ -21,4 +26,46 @@ func (client Client) ClientRun(savepath string) {
 		log.Fatal(connErr)
 	}
 	defer conn.Close()
+
+	reader := bufio.NewReader(conn)
+	var info *api.FileInfo
+
+	for {
+		msgType, readErr := reader.ReadByte()
+		if readErr != nil {
+			if readErr == io.EOF {
+				break
+			}
+			log.Fatal(readErr)
+		}
+
+		switch msgType {
+		case 0:
+			var jsonData [1024]byte
+			size, readErr := reader.Read(jsonData[:])
+			if readErr != nil {
+				if readErr == io.EOF {
+					break
+				}
+				log.Fatal(readErr)
+			}
+			info = api.DecodeJSON(jsonData[:size])
+			fmt.Println(info)
+		case 1:
+			if info == nil {
+				log.Fatal("FileInfo not initialized")
+			}
+			limitedReader := &io.LimitedReader{R: reader, N: info.FileSize}
+			fp, createErr := os.Create(filepath.Join(savepath, info.FileName))
+			if createErr != nil {
+				log.Fatal(createErr)
+			}
+			if _, copyErr := io.Copy(fp, limitedReader); copyErr != nil {
+				if copyErr == io.EOF {
+					continue
+				}
+				log.Fatal(copyErr)
+			}
+		}
+	}
 }

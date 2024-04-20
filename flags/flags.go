@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"postfiles/api"
+	"postfiles/client"
 	"postfiles/server"
 	"strings"
 )
@@ -63,7 +64,9 @@ func (args *Arguments) Run() {
 		server := server.NewServer(args.IP, args.Port)
 		server.ServerRun(args.Files)
 	case "client":
-		fmt.Println("client start")
+		fmt.Printf("client start: %s:%d\n", args.IP, args.Port)
+		client := client.NewClient(args.IP, args.Port)
+		client.ClientRun(args.SavePath)
 	default:
 		log.Fatal("unknown type")
 	}

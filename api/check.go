@@ -19,6 +19,8 @@ func FileStat(file string) (string, int64) {
 	info, statErr := os.Stat(file)
 	if os.IsNotExist(statErr) {
 		log.Fatalf("file: %s does not exist\n", file)
+	} else if info.IsDir() {
+		log.Fatalf("%s is dir\n", file)
 	}
 	return filepath.Base(info.Name()), info.Size()
 }
