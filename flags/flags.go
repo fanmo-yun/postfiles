@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"postfiles/api"
+	"postfiles/server"
 	"strings"
 )
 
@@ -29,13 +30,14 @@ func (args *Arguments) Parser() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
 		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "Info: No Flag Parameters Are Treated as Files\n")
 	}
 	flag.Parse()
 	args.Files = flag.Args()
 }
 
 func (args *Arguments) Handler() {
-	if args.IP == "" {
+	if len(args.IP) == 0 {
 		args.IP = api.GenIP()
 	} else if !api.IsvalidIP(args.IP) {
 		log.Fatalf("Ip incorrect: %s", args.IP)
@@ -44,12 +46,25 @@ func (args *Arguments) Handler() {
 	if !api.IsvalidPort(args.Port) {
 		log.Fatalf("Ip incorrect: %d", args.Port)
 	}
+
+	if strings.ToLower(args.Type) == "server" && len(args.Files) == 0 {
+		log.Fatal("No Files")
+	}
+
+	if strings.ToLower(args.Type) == "client" && len(args.SavePath) == 0 {
+		args.SavePath = api.GetDownloadPath()
+	}
 }
 
 func (args *Arguments) Run() {
-	if strings.ToLower(args.Type) == "server" {
-		// s := server.NewServer(args.IP, args.Port)
-		// s.ServerRun()
-		fmt.Printf("Server Start: %s:%d\n", args.IP, args.Port)
+	switch strings.ToLower(args.Type) {
+	case "server":
+		fmt.Printf("server start: %s:%d\n", args.IP, args.Port)
+		server := server.NewServer(args.IP, args.Port)
+		server.ServerRun(args.Files)
+	case "client":
+		fmt.Println("client start")
+	default:
+		log.Fatal("unknown type")
 	}
 }
