@@ -47,10 +47,9 @@ func (client Client) ClientRun(savepath string) {
 				if readErr == io.EOF {
 					break
 				}
-				log.Fatal(readErr)
+				log.Fatal("here")
 			}
 			info = api.DecodeJSON(jsonData[:size])
-			fmt.Println(info)
 		case 1:
 			if info == nil {
 				log.Fatal("FileInfo not initialized")

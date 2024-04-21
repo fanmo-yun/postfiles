@@ -50,11 +50,19 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 			log.Fatal(writeErr)
 		}
 
+		if flushErr := writer.Flush(); flushErr != nil {
+			log.Fatal(flushErr)
+		}
+
 		if _, writeErr := writer.Write(api.EncodeJSON(api.NewInfo(filename, filesize))); writeErr != nil {
 			if writeErr == io.EOF {
 				break
 			}
 			log.Fatal(writeErr)
+		}
+
+		if flushErr := writer.Flush(); flushErr != nil {
+			log.Fatal(flushErr)
 		}
 
 		fp, openErr := os.Open(value)
@@ -70,14 +78,20 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 			log.Fatal(writeErr)
 		}
 
-		if _, copyErr := io.Copy(writer, fp); copyErr != nil {
+		if flushErr := writer.Flush(); flushErr != nil {
+			log.Fatal(flushErr)
+		}
+
+		limitedReader := &io.LimitedReader{R: fp, N: filesize}
+		if _, copyErr := io.Copy(writer, limitedReader); copyErr != nil {
 			if copyErr == io.EOF {
 				break
 			}
 			log.Fatal(copyErr)
 		}
-	}
-	if flushErr := writer.Flush(); flushErr != nil {
-		log.Fatal(flushErr)
+
+		if flushErr := writer.Flush(); flushErr != nil {
+			log.Fatal(flushErr)
+		}
 	}
 }
