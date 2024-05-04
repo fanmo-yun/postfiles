@@ -69,7 +69,6 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 		if openErr != nil {
 			log.Fatal(openErr)
 		}
-		defer fp.Close()
 
 		if writeErr := writer.WriteByte(1); writeErr != nil {
 			if writeErr == io.EOF {
@@ -92,6 +91,10 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 
 		if flushErr := writer.Flush(); flushErr != nil {
 			log.Fatal(flushErr)
+		}
+
+		if closeErr := fp.Close(); closeErr != nil {
+			log.Fatal(closeErr)
 		}
 	}
 }
