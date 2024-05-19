@@ -41,60 +41,52 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 	writer := bufio.NewWriter(conn)
 
 	for _, value := range *fileList {
-		filename, filesize := api.FileStat(value)
-
-		if writeErr := writer.WriteByte(0); writeErr != nil {
-			if writeErr == io.EOF {
-				break
-			}
-			log.Fatal(writeErr)
-		}
-
-		if flushErr := writer.Flush(); flushErr != nil {
-			log.Fatal(flushErr)
-		}
-
-		if _, writeErr := writer.Write(api.EncodeJSON(api.NewInfo(filename, filesize))); writeErr != nil {
-			if writeErr == io.EOF {
-				break
-			}
-			log.Fatal(writeErr)
-		}
-
-		if flushErr := writer.Flush(); flushErr != nil {
-			log.Fatal(flushErr)
-		}
-
-		fp, openErr := os.Open(value)
-		if openErr != nil {
-			log.Fatal(openErr)
-		}
-
-		if writeErr := writer.WriteByte(1); writeErr != nil {
-			if writeErr == io.EOF {
-				break
-			}
-			log.Fatal(writeErr)
-		}
-
-		if flushErr := writer.Flush(); flushErr != nil {
-			log.Fatal(flushErr)
-		}
-
-		limitedReader := &io.LimitedReader{R: fp, N: filesize}
-		if _, copyErr := io.Copy(writer, limitedReader); copyErr != nil {
-			if copyErr == io.EOF {
-				break
-			}
-			log.Fatal(copyErr)
-		}
-
-		if flushErr := writer.Flush(); flushErr != nil {
-			log.Fatal(flushErr)
-		}
-
-		if closeErr := fp.Close(); closeErr != nil {
-			log.Fatal(closeErr)
+		if err := server.serverwritehandler(writer, value); err != nil {
+			break
 		}
 	}
+}
+
+func (server *Server) serverwritehandler(writer *bufio.Writer, file string) error {
+	filename, filesize := api.FileStat(file)
+
+	if writeErr := writer.WriteByte(0); writeErr != nil {
+		return writeErr
+	}
+
+	if _, writeErr := writer.Write(api.EncodeJSON(api.NewInfo(filename, filesize))); writeErr != nil {
+		return writeErr
+	}
+
+	if writeErr := writer.WriteByte('\n'); writeErr != nil {
+		return writeErr
+	}
+
+	if flushErr := writer.Flush(); flushErr != nil {
+		return flushErr
+	}
+
+	fp, openErr := os.Open(file)
+	if openErr != nil {
+		return openErr
+	}
+	defer fp.Close()
+
+	if writeErr := writer.WriteByte(1); writeErr != nil {
+		return writeErr
+	}
+
+	if flushErr := writer.Flush(); flushErr != nil {
+		return flushErr
+	}
+
+	if _, copyErr := io.CopyN(writer, fp, filesize); copyErr != nil {
+		return copyErr
+	}
+
+	if flushErr := writer.Flush(); flushErr != nil {
+		return flushErr
+	}
+
+	return nil
 }

@@ -41,25 +41,24 @@ func (client Client) ClientRun(savepath string) {
 
 		switch msgType {
 		case 0:
-			var jsonData [1024]byte
-			size, readErr := reader.Read(jsonData[:])
+			jsonData, readErr := reader.ReadBytes('\n')
 			if readErr != nil {
 				if readErr == io.EOF {
 					break
 				}
 				log.Fatal("here")
 			}
-			info = api.DecodeJSON(jsonData[:size])
+			info = api.DecodeJSON(jsonData[:])
 		case 1:
 			if info == nil {
 				log.Fatal("FileInfo not initialized")
 			}
-			limitedReader := &io.LimitedReader{R: reader, N: info.FileSize}
 			fp, createErr := os.Create(filepath.Join(savepath, info.FileName))
 			if createErr != nil {
 				log.Fatal(createErr)
 			}
-			if _, copyErr := io.Copy(fp, limitedReader); copyErr != nil {
+			defer fp.Close()
+			if _, copyErr := io.CopyN(fp, reader, info.FileSize); copyErr != nil {
 				if copyErr == io.EOF {
 					continue
 				}
