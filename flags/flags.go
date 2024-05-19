@@ -3,12 +3,13 @@ package flags
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"postfiles/api"
 	"postfiles/client"
 	"postfiles/server"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Arguments struct {
@@ -41,15 +42,15 @@ func (args *Arguments) Handler() {
 	if len(args.IP) == 0 {
 		args.IP = api.GenIP()
 	} else if !api.IsvalidIP(args.IP) {
-		log.Fatalf("Ip incorrect: %s", args.IP)
+		logrus.Fatalf("Invalid IP: %s", args.IP)
 	}
 
 	if !api.IsvalidPort(args.Port) {
-		log.Fatalf("Ip incorrect: %d", args.Port)
+		logrus.Fatalf("Invalid Port: %d", args.Port)
 	}
 
 	if strings.ToLower(args.Type) == "server" && len(args.Files) == 0 {
-		log.Fatal("No Files")
+		logrus.Fatal("No Files provided")
 	}
 
 	if strings.ToLower(args.Type) == "client" && len(args.SavePath) == 0 {
@@ -58,16 +59,19 @@ func (args *Arguments) Handler() {
 }
 
 func (args *Arguments) Run() {
+	logrus.Info("Application starting...")
 	switch strings.ToLower(args.Type) {
 	case "server":
+		logrus.Info("Starting in server mode")
 		fmt.Printf("server start: %s:%d\n", args.IP, args.Port)
 		server := server.NewServer(args.IP, args.Port)
 		server.ServerRun(args.Files)
 	case "client":
+		logrus.Info("Starting in client mode")
 		fmt.Printf("client start: %s:%d\n", args.IP, args.Port)
 		client := client.NewClient(args.IP, args.Port)
 		client.ClientRun(args.SavePath)
 	default:
-		log.Fatal("unknown type")
+		logrus.Fatal("unknown type")
 	}
 }

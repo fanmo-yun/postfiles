@@ -1,10 +1,9 @@
 package main
 
-import "github.com/sirupsen/logrus"
+import (
+	"postfiles/app"
+)
 
 func main() {
-	logrus.SetFormatter(&logrus.TextFormatter{})
-	logrus.SetLevel(logrus.InfoLevel)
-	logrus.Info("app run")
-	AppRun()
+	app.Run()
 }
