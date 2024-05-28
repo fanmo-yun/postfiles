@@ -2,8 +2,6 @@ package api
 
 import (
 	"encoding/json"
-
-	"github.com/sirupsen/logrus"
 )
 
 type FileInfo struct {
@@ -18,7 +16,7 @@ func NewInfo(filename string, filesize int64) *FileInfo {
 func EncodeJSON(info *FileInfo) []byte {
 	jsonData, encodeErr := json.Marshal(info)
 	if encodeErr != nil {
-		logrus.Fatal(encodeErr)
+		// logrus.Fatal(encodeErr)
 	}
 	return jsonData
 }
@@ -26,7 +24,7 @@ func EncodeJSON(info *FileInfo) []byte {
 func DecodeJSON(info []byte) *FileInfo {
 	var fileinfo FileInfo
 	if err := json.Unmarshal(info, &fileinfo); err != nil {
-		logrus.Fatal(err)
+		// logrus.Fatal(err)
 	}
 	return &fileinfo
 }

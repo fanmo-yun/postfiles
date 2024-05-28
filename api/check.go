@@ -4,8 +4,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-
-	"github.com/sirupsen/logrus"
 )
 
 func IsvalidIP(ip string) bool {
@@ -19,9 +17,9 @@ func IsvalidPort(port int) bool {
 func FileStat(file string) (string, int64) {
 	info, statErr := os.Stat(file)
 	if os.IsNotExist(statErr) {
-		logrus.Fatalf("file: %s does not exist", file)
+		// logrus.Fatalf("file: %s does not exist", file)
 	} else if info.IsDir() {
-		logrus.Fatalf("error stating file: %v", statErr)
+		// logrus.Fatalf("error stating file: %v", statErr)
 	}
 	return filepath.Base(info.Name()), info.Size()
 }

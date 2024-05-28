@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"postfiles/api"
-
-	"github.com/sirupsen/logrus"
 )
 
 type Client struct {
@@ -24,7 +22,7 @@ func NewClient(IP string, Port int) *Client {
 func (client Client) ClientRun(savepath string) {
 	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", client.IP, client.Port))
 	if connErr != nil {
-		logrus.Fatal(connErr)
+		// logrus.Fatal(connErr)
 	}
 	defer conn.Close()
 
@@ -37,7 +35,7 @@ func (client Client) ClientRun(savepath string) {
 			if readErr == io.EOF {
 				break
 			}
-			logrus.Fatal(readErr)
+			// logrus.Fatal(readErr)
 		}
 
 		switch msgType {
@@ -47,23 +45,23 @@ func (client Client) ClientRun(savepath string) {
 				if readErr == io.EOF {
 					break
 				}
-				logrus.Fatal(readErr)
+				// logrus.Fatal(readErr)
 			}
 			info = api.DecodeJSON(jsonData[:])
 		case 1:
 			if info == nil {
-				logrus.Fatal("FileInfo not initialized")
+				// logrus.Fatal("FileInfo not initialized")
 			}
 			fp, createErr := os.Create(filepath.Join(savepath, info.FileName))
 			if createErr != nil {
-				logrus.Fatal(createErr)
+				// logrus.Fatal(createErr)
 			}
 			defer fp.Close()
 			if _, copyErr := io.CopyN(fp, reader, info.FileSize); copyErr != nil {
 				if copyErr == io.EOF {
 					continue
 				}
-				logrus.Fatal(copyErr)
+				// logrus.Fatal(copyErr)
 			}
 		}
 	}

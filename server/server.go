@@ -7,8 +7,6 @@ import (
 	"net"
 	"os"
 	"postfiles/api"
-
-	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
@@ -23,16 +21,16 @@ func NewServer(IP string, Port int) *Server {
 func (server Server) ServerRun(files []string) {
 	listener, listenErr := net.Listen("tcp", fmt.Sprintf("%s:%d", server.IP, server.Port))
 	if listenErr != nil {
-		logrus.Fatal(listenErr)
+		// logrus.Fatal(listenErr)
 	}
 
 	for {
 		conn, connErr := listener.Accept()
 		if connErr != nil {
-			logrus.Warn(connErr)
+			// logrus.Warn(connErr)
 			continue
 		}
-		logrus.Infof("%s is come", conn.RemoteAddr().String())
+		// logrus.Infof("%s is come", conn.RemoteAddr().String())
 		go server.serverhandler(conn, &files)
 	}
 }
@@ -44,7 +42,7 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 
 	for _, value := range *fileList {
 		if err := server.serverwritehandler(writer, value); err != nil {
-			logrus.Fatal(err)
+			// logrus.Fatal(err)
 		}
 	}
 }
