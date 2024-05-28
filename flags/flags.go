@@ -40,15 +40,18 @@ func (args *Arguments) Handler() {
 	if len(args.IP) == 0 {
 		args.IP = api.GenIP()
 	} else if !api.IsvalidIP(args.IP) {
-		// logrus.Fatalf("Invalid IP: %s", args.IP)
+		fmt.Fprintf(os.Stderr, "Invalid IP: %s\n", args.IP)
+		os.Exit(1)
 	}
 
 	if !api.IsvalidPort(args.Port) {
-		// logrus.Fatalf("Invalid Port: %d", args.Port)
+		fmt.Fprintf(os.Stderr, "Invalid Port: %s\n", args.IP)
+		os.Exit(1)
 	}
 
 	if strings.ToLower(args.Type) == "server" && len(args.Files) == 0 {
-		// logrus.Fatal("No Files provided")
+		fmt.Fprintf(os.Stderr, "No Files provided\n")
+		os.Exit(1)
 	}
 
 	if strings.ToLower(args.Type) == "client" && len(args.SavePath) == 0 {
@@ -57,19 +60,20 @@ func (args *Arguments) Handler() {
 }
 
 func (args *Arguments) Run() {
-	// logrus.Info("Application starting...")
+	fmt.Fprintf(os.Stdout, "Application running on %s:%d ...\n", args.IP, args.Port)
 	switch strings.ToLower(args.Type) {
 	case "server":
-		// logrus.Info("Starting in server mode")
+		fmt.Fprintln(os.Stdout, "Starting in server mode")
 		fmt.Printf("server start: %s:%d\n", args.IP, args.Port)
 		server := server.NewServer(args.IP, args.Port)
 		server.ServerRun(args.Files)
 	case "client":
-		// logrus.Info("Starting in client mode")
+		fmt.Fprintln(os.Stdout, "Starting in client mode")
 		fmt.Printf("client start: %s:%d\n", args.IP, args.Port)
 		client := client.NewClient(args.IP, args.Port)
 		client.ClientRun(args.SavePath)
 	default:
-		// logrus.Fatal("unknown type")
+		fmt.Fprintln(os.Stderr, "unknown type")
+		os.Exit(1)
 	}
 }

@@ -21,16 +21,17 @@ func NewServer(IP string, Port int) *Server {
 func (server Server) ServerRun(files []string) {
 	listener, listenErr := net.Listen("tcp", fmt.Sprintf("%s:%d", server.IP, server.Port))
 	if listenErr != nil {
-		// logrus.Fatal(listenErr)
+		fmt.Fprintf(os.Stderr, "Failed to start listener: %v\n", listenErr)
+		os.Exit(1)
 	}
 
 	for {
 		conn, connErr := listener.Accept()
 		if connErr != nil {
-			// logrus.Warn(connErr)
+			fmt.Fprintf(os.Stdout, "Failed to accept connection: %v\n", connErr)
 			continue
 		}
-		// logrus.Infof("%s is come", conn.RemoteAddr().String())
+		fmt.Fprintf(os.Stdout, "Connection established from %s", conn.RemoteAddr().String())
 		go server.serverhandler(conn, &files)
 	}
 }
@@ -40,9 +41,10 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 
 	writer := bufio.NewWriter(conn)
 
-	for _, value := range *fileList {
-		if err := server.serverwritehandler(writer, value); err != nil {
-			// logrus.Fatal(err)
+	for _, fv := range *fileList {
+		if err := server.serverwritehandler(writer, fv); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write file %s: %v\n", fv, err)
+			continue
 		}
 	}
 }

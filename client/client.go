@@ -22,7 +22,8 @@ func NewClient(IP string, Port int) *Client {
 func (client Client) ClientRun(savepath string) {
 	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", client.IP, client.Port))
 	if connErr != nil {
-		// logrus.Fatal(connErr)
+		fmt.Fprintf(os.Stderr, "Failed to connect: %v\n", connErr)
+		os.Exit(1)
 	}
 	defer conn.Close()
 
@@ -35,7 +36,8 @@ func (client Client) ClientRun(savepath string) {
 			if readErr == io.EOF {
 				break
 			}
-			// logrus.Fatal(readErr)
+			fmt.Fprintf(os.Stderr, "Failed to read message type: %v\n", readErr)
+			os.Exit(1)
 		}
 
 		switch msgType {
@@ -45,23 +47,27 @@ func (client Client) ClientRun(savepath string) {
 				if readErr == io.EOF {
 					break
 				}
-				// logrus.Fatal(readErr)
+				fmt.Fprintf(os.Stderr, "Failed to read JSON data: %v\n", readErr)
+				os.Exit(1)
 			}
 			info = api.DecodeJSON(jsonData[:])
 		case 1:
 			if info == nil {
-				// logrus.Fatal("FileInfo not initialized")
+				fmt.Fprintf(os.Stderr, "FileInfo not initialized\n")
+				os.Exit(1)
 			}
 			fp, createErr := os.Create(filepath.Join(savepath, info.FileName))
 			if createErr != nil {
-				// logrus.Fatal(createErr)
+				fmt.Fprintf(os.Stderr, "Failed to create file: %v\n", createErr)
+				os.Exit(1)
 			}
 			defer fp.Close()
 			if _, copyErr := io.CopyN(fp, reader, info.FileSize); copyErr != nil {
 				if copyErr == io.EOF {
 					continue
 				}
-				// logrus.Fatal(copyErr)
+				fmt.Fprintf(os.Stderr, "Failed to copy file data: %v\n", copyErr)
+				os.Exit(1)
 			}
 		}
 	}
