@@ -60,7 +60,7 @@ func (args *Arguments) Handler() {
 }
 
 func (args *Arguments) Run() {
-	fmt.Fprintf(os.Stdout, "Application running on %s:%d ...\n", args.IP, args.Port)
+	fmt.Fprintf(os.Stdout, "Application running ...\n")
 	switch strings.ToLower(args.Type) {
 	case "server":
 		fmt.Fprintln(os.Stdout, "Starting in server mode")
