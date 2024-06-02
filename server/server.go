@@ -31,7 +31,7 @@ func (server Server) ServerRun(files []string) {
 			fmt.Fprintf(os.Stdout, "Failed to accept connection: %v\n", connErr)
 			continue
 		}
-		fmt.Fprintf(os.Stdout, "Connection established from %s", conn.RemoteAddr().String())
+		fmt.Fprintf(os.Stdout, "Connection established from %s\n", conn.RemoteAddr().String())
 		go server.serverhandler(conn, &files)
 	}
 }
