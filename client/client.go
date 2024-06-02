@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"postfiles/api"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 type Client struct {
@@ -62,7 +64,17 @@ func (client Client) ClientRun(savepath string) {
 				os.Exit(1)
 			}
 			defer fp.Close()
-			if _, copyErr := io.CopyN(fp, reader, info.FileSize); copyErr != nil {
+
+			bar := progressbar.NewOptions64(
+				info.FileSize,
+				progressbar.OptionSetDescription("Receiving file: "+info.FileName),
+				progressbar.OptionSetWidth(30),
+				progressbar.OptionShowBytes(true),
+				progressbar.OptionSetPredictTime(true),
+				progressbar.OptionShowCount(),
+			)
+
+			if _, copyErr := io.CopyN(io.MultiWriter(fp, bar), reader, info.FileSize); copyErr != nil {
 				if copyErr == io.EOF {
 					continue
 				}
