@@ -71,7 +71,12 @@ func (client Client) ClientRun(savepath string) {
 				progressbar.OptionSetWidth(30),
 				progressbar.OptionShowBytes(true),
 				progressbar.OptionSetPredictTime(true),
+				progressbar.OptionClearOnFinish(),
 				progressbar.OptionShowCount(),
+				progressbar.OptionOnCompletion(func() {
+					fmt.Println()
+				}),
+				progressbar.OptionSetRenderBlankState(true),
 			)
 
 			if _, copyErr := io.CopyN(io.MultiWriter(fp, bar), reader, info.FileSize); copyErr != nil {
