@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"postfiles/api"
+	"postfiles/fileinfo"
 )
 
 type Server struct {
@@ -56,7 +57,7 @@ func (server *Server) serverwritehandler(writer *bufio.Writer, file string) erro
 		return writeErr
 	}
 
-	if _, writeErr := writer.Write(api.EncodeJSON(api.NewInfo(filename, filesize))); writeErr != nil {
+	if _, writeErr := writer.Write(fileinfo.EncodeJSON(fileinfo.NewInfo(filename, filesize))); writeErr != nil {
 		return writeErr
 	}
 

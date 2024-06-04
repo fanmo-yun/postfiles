@@ -7,7 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"postfiles/api"
+	"postfiles/fileinfo"
 
 	"github.com/schollz/progressbar/v3"
 )
@@ -30,7 +30,7 @@ func (client Client) ClientRun(savepath string) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
-	var info *api.FileInfo
+	var info *fileinfo.FileInfo
 
 	for {
 		msgType, readErr := reader.ReadByte()
@@ -52,7 +52,7 @@ func (client Client) ClientRun(savepath string) {
 				fmt.Fprintf(os.Stderr, "Failed to read JSON data: %v\n", readErr)
 				os.Exit(1)
 			}
-			info = api.DecodeJSON(jsonData[:])
+			info = fileinfo.DecodeJSON(jsonData[:])
 		case 1:
 			if info == nil {
 				fmt.Fprintf(os.Stderr, "FileInfo not initialized\n")
