@@ -1,12 +1,7 @@
 package app
 
-func parseAndHandle() {
-	// app := flags.Newflags()
-	// app.Parser()
-	// app.Handler()
-	// app.Run()
-}
+import "postfiles/flags"
 
 func Run() {
-	parseAndHandle()
+	flags.Execute()
 }
