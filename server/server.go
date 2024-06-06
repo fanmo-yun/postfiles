@@ -6,8 +6,8 @@ import (
 	"io"
 	"net"
 	"os"
-	"postfiles/api"
 	"postfiles/fileinfo"
+	"postfiles/utils"
 )
 
 type Server struct {
@@ -51,7 +51,7 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 }
 
 func (server *Server) serverwritehandler(writer *bufio.Writer, file string) error {
-	filename, filesize := api.FileStat(file)
+	filename, filesize := utils.FileStat(file)
 
 	if writeErr := writer.WriteByte(0); writeErr != nil {
 		return writeErr

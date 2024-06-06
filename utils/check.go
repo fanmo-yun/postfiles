@@ -1,4 +1,4 @@
-package api
+package utils
 
 import (
 	"fmt"
@@ -30,4 +30,23 @@ func FileStat(file string) (string, int64) {
 	}
 
 	return filepath.Base(info.Name()), info.Size()
+}
+
+func ValidateIPAndPort(ip string, port int) (string, int) {
+	temp_ip := ip
+	temp_port := port
+
+	if len(temp_ip) == 0 {
+		temp_ip = GenIP()
+	} else if !IsvalidIP(temp_ip) {
+		fmt.Fprintf(os.Stderr, "Invalid IP: %s\n", temp_ip)
+		os.Exit(1)
+	}
+
+	if !IsvalidPort(temp_port) {
+		fmt.Fprintf(os.Stderr, "Invalid Port: %d\n", temp_port)
+		os.Exit(1)
+	}
+
+	return temp_ip, temp_port
 }
