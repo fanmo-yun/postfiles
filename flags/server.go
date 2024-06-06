@@ -25,7 +25,7 @@ var serverCmd = &cobra.Command{
 		}
 
 		ip, port := utils.ValidateIPAndPort(serverIP, serverPort)
-		fmt.Printf("Starting server at %s:%d with files: %v\n", ip, port, serverFiles)
+		fmt.Printf("Starting server at %s:%d\n", ip, port)
 		srv := server.NewServer(ip, port)
 		srv.ServerRun(serverFiles)
 	},
@@ -35,5 +35,5 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 	serverCmd.Flags().StringVarP(&serverIP, "ip", "i", "", "IP Address (default \"Ip currently in use\")")
 	serverCmd.Flags().IntVarP(&serverPort, "port", "p", 8877, "Port Number")
-	serverCmd.Flags().StringArrayVarP(&serverFiles, "files", "f", []string{}, "Files to serve")
+	serverCmd.Flags().StringSliceVarP(&serverFiles, "files", "f", []string{}, "Files to serve")
 }
