@@ -18,6 +18,12 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Run as server",
 	Run: func(cmd *cobra.Command, args []string) {
+		if len(serverFiles) == 0 {
+			fmt.Fprintln(cmd.OutOrStderr(), "No files provided to serve.")
+			cmd.Usage()
+			return
+		}
+
 		ip, port := utils.ValidateIPAndPort(serverIP, serverPort)
 		fmt.Printf("Starting server at %s:%d with files: %v\n", ip, port, serverFiles)
 		srv := server.NewServer(ip, port)
