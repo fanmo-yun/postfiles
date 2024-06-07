@@ -18,7 +18,7 @@ var clientCmd = &cobra.Command{
 	Use:   "client",
 	Short: "Run as client",
 	Run: func(cmd *cobra.Command, args []string) {
-		ip, port := utils.ValidateIPAndPort(clientIP, clientPort)
+		ip, port := utils.ValidateClientIPAndPort(clientIP, clientPort)
 		if clientSavePath == "System Download Path" {
 			clientSavePath = utils.GetDownloadPath()
 		}

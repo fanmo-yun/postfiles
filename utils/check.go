@@ -5,6 +5,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+
+	"golang.org/x/term"
 )
 
 func IsvalidIP(ip string) bool {
@@ -32,7 +34,7 @@ func FileStat(file string) (string, int64) {
 	return filepath.Base(info.Name()), info.Size()
 }
 
-func ValidateIPAndPort(ip string, port int) (string, int) {
+func ValidateServerIPAndPort(ip string, port int) (string, int) {
 	temp_ip := ip
 	temp_port := port
 
@@ -49,4 +51,29 @@ func ValidateIPAndPort(ip string, port int) (string, int) {
 	}
 
 	return temp_ip, temp_port
+}
+
+func ValidateClientIPAndPort(ip string, port int) (string, int) {
+	temp_ip := ip
+	temp_port := port
+
+	if len(temp_ip) == 0 {
+		temp_ip = GenIP()
+	} else if !IsvalidIP(temp_ip) {
+		fmt.Fprintf(os.Stderr, "Invalid IP: %s\n", temp_ip)
+		os.Exit(1)
+	}
+
+	if !IsvalidPort(temp_port) {
+		fmt.Fprintf(os.Stderr, "Invalid Port: %d\n", temp_port)
+		os.Exit(1)
+	}
+
+	return temp_ip, temp_port
+}
+
+func IsTerminal() {
+	if !(term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stderr.Fd())) && term.IsTerminal(int(os.Stdin.Fd()))) {
+		fmt.Fprintf(os.Stderr, "Not in a terminal\n")
+	}
 }

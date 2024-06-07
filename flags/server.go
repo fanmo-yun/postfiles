@@ -24,7 +24,7 @@ var serverCmd = &cobra.Command{
 			return
 		}
 
-		ip, port := utils.ValidateIPAndPort(serverIP, serverPort)
+		ip, port := utils.ValidateServerIPAndPort(serverIP, serverPort)
 		fmt.Printf("Starting server at %s:%d\n", ip, port)
 		srv := server.NewServer(ip, port)
 		srv.ServerRun(serverFiles)
