@@ -76,4 +76,12 @@ func IsTerminal() {
 	if !(term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stderr.Fd())) && term.IsTerminal(int(os.Stdin.Fd()))) {
 		fmt.Fprintf(os.Stderr, "Not in a terminal\n")
 	}
+
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting terminal size: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Terminal size: %d columns, %d rows\n", width, height)
 }
