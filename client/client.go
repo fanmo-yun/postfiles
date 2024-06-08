@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"postfiles/fileinfo"
+	"postfiles/utils"
 
 	"github.com/schollz/progressbar/v3"
 )
@@ -22,6 +23,8 @@ func NewClient(IP string, Port int) *Client {
 }
 
 func (client Client) ClientRun(savepath string) {
+	w := utils.GetBarWidth()
+
 	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", client.IP, client.Port))
 	if connErr != nil {
 		fmt.Fprintf(os.Stderr, "Failed to connect: %v\n", connErr)
@@ -67,8 +70,8 @@ func (client Client) ClientRun(savepath string) {
 
 			bar := progressbar.NewOptions64(
 				info.FileSize,
-				progressbar.OptionSetDescription("Receiving file: "+info.FileName),
-				progressbar.OptionSetWidth(30),
+				progressbar.OptionSetDescription("Receiving file: "+utils.TruncateString(info.FileName, w-20)),
+				progressbar.OptionSetWidth(w-40),
 				progressbar.OptionShowBytes(true),
 				progressbar.OptionSetPredictTime(true),
 				progressbar.OptionShowCount(),

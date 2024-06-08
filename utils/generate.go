@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 func GenIP() string {
@@ -33,4 +35,15 @@ func GetDownloadPath() string {
 		os.Exit(1)
 	}
 	return downloadDir
+}
+
+func GetBarWidth() int {
+	width, _, _ := term.GetSize(int(os.Stdout.Fd()))
+	barLength := width * 70 / 100
+	if barLength < 20 {
+		barLength = 20
+	} else if barLength > width-10 {
+		barLength = width - 10
+	}
+	return barLength
 }

@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"unicode/utf8"
 
 	"golang.org/x/term"
 )
@@ -77,11 +78,17 @@ func IsTerminal() {
 		fmt.Fprintf(os.Stderr, "Not in a terminal\n")
 	}
 
-	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	_, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error getting terminal size: %v\n", err)
 		os.Exit(1)
 	}
+}
 
-	fmt.Printf("Terminal size: %d columns, %d rows\n", width, height)
+func TruncateString(s string, maxLength int) string {
+	if utf8.RuneCountInString(s) <= maxLength {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:maxLength-3]) + "..."
 }
