@@ -23,7 +23,7 @@ func NewClient(IP string, Port int) *Client {
 }
 
 func (client Client) ClientRun(savepath string) {
-	w := utils.GetBarWidth()
+	w := utils.GetBarWidth() - 40
 
 	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", client.IP, client.Port))
 	if connErr != nil {
@@ -46,7 +46,7 @@ func (client Client) ClientRun(savepath string) {
 		}
 
 		switch msgType {
-		case 0:
+		case fileinfo.File_Info:
 			jsonData, readErr := reader.ReadBytes('\n')
 			if readErr != nil {
 				if readErr == io.EOF {
@@ -56,7 +56,7 @@ func (client Client) ClientRun(savepath string) {
 				os.Exit(1)
 			}
 			info = fileinfo.DecodeJSON(jsonData[:])
-		case 1:
+		case fileinfo.File_Data:
 			if info == nil {
 				fmt.Fprintf(os.Stderr, "FileInfo not initialized\n")
 				os.Exit(1)
@@ -71,7 +71,7 @@ func (client Client) ClientRun(savepath string) {
 			bar := progressbar.NewOptions64(
 				info.FileSize,
 				progressbar.OptionSetDescription("Receiving file: "+utils.TruncateString(info.FileName, w-20)),
-				progressbar.OptionSetWidth(w-40),
+				progressbar.OptionSetWidth(w),
 				progressbar.OptionShowBytes(true),
 				progressbar.OptionSetPredictTime(true),
 				progressbar.OptionShowCount(),

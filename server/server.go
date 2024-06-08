@@ -53,7 +53,7 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 func (server *Server) serverwritehandler(writer *bufio.Writer, file string) error {
 	filename, filesize := utils.FileStat(file)
 
-	if writeErr := writer.WriteByte(0); writeErr != nil {
+	if writeErr := writer.WriteByte(fileinfo.File_Info); writeErr != nil {
 		return writeErr
 	}
 
@@ -75,7 +75,7 @@ func (server *Server) serverwritehandler(writer *bufio.Writer, file string) erro
 	}
 	defer fp.Close()
 
-	if writeErr := writer.WriteByte(1); writeErr != nil {
+	if writeErr := writer.WriteByte(fileinfo.File_Data); writeErr != nil {
 		return writeErr
 	}
 
