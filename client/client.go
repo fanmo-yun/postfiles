@@ -8,9 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"postfiles/fileinfo"
-	"postfiles/utils"
-
-	"github.com/schollz/progressbar/v3"
 )
 
 type Client struct {
@@ -23,8 +20,6 @@ func NewClient(IP string, Port int) *Client {
 }
 
 func (client Client) ClientRun(savepath string) {
-	w := utils.GetBarWidth() - 40
-
 	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", client.IP, client.Port))
 	if connErr != nil {
 		fmt.Fprintf(os.Stderr, "Failed to connect: %v\n", connErr)
@@ -66,20 +61,8 @@ func (client Client) ClientRun(savepath string) {
 				fmt.Fprintf(os.Stderr, "Failed to create file: %v\n", createErr)
 				os.Exit(1)
 			}
-			defer fp.Close()
 
-			bar := progressbar.NewOptions64(
-				info.FileSize,
-				progressbar.OptionSetDescription("Receiving file: "+utils.TruncateString(info.FileName, w-20)),
-				progressbar.OptionSetWidth(w),
-				progressbar.OptionShowBytes(true),
-				progressbar.OptionSetPredictTime(true),
-				progressbar.OptionShowCount(),
-				progressbar.OptionOnCompletion(func() {
-					fmt.Println()
-				}),
-				progressbar.OptionSetRenderBlankState(true),
-			)
+			bar := init_bar(info.FileSize, info.FileName)
 
 			if _, copyErr := io.CopyN(io.MultiWriter(fp, bar), reader, info.FileSize); copyErr != nil {
 				if copyErr == io.EOF {
@@ -88,6 +71,8 @@ func (client Client) ClientRun(savepath string) {
 				fmt.Fprintf(os.Stderr, "Failed to copy file data: %v\n", copyErr)
 				os.Exit(1)
 			}
+
+			fp.Close()
 		}
 	}
 }

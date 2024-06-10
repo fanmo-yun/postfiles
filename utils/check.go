@@ -77,16 +77,10 @@ func IsTerminal() {
 	if !(term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stderr.Fd())) && term.IsTerminal(int(os.Stdin.Fd()))) {
 		fmt.Fprintf(os.Stderr, "Not in a terminal\n")
 	}
-
-	_, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting terminal size: %v\n", err)
-		os.Exit(1)
-	}
 }
 
 func TruncateString(s string, maxLength int) string {
-	if utf8.RuneCountInString(s) <= maxLength {
+	if utf8.RuneCountInString(s) < maxLength {
 		return s
 	}
 	runes := []rune(s)
