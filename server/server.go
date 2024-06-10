@@ -42,8 +42,12 @@ func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
 
 	writer := bufio.NewWriter(conn)
 
+	server.sendfiles(writer, fileList)
+}
+
+func (server *Server) sendfiles(w *bufio.Writer, fileList *[]string) {
 	for _, fv := range *fileList {
-		if err := server.serverwritehandler(writer, fv); err != nil {
+		if err := server.serverwritehandler(w, fv); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to write file %s: %v\n", fv, err)
 			continue
 		}
