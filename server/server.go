@@ -19,8 +19,8 @@ func NewServer(IP string, Port int) *Server {
 	return &Server{IP, Port}
 }
 
-func (server Server) ServerRun(files []string) {
-	listener, listenErr := net.Listen("tcp", fmt.Sprintf("%s:%d", server.IP, server.Port))
+func (s Server) ServerRun(files []string) {
+	listener, listenErr := net.Listen("tcp", fmt.Sprintf("%s:%d", s.IP, s.Port))
 	if listenErr != nil {
 		fmt.Fprintf(os.Stderr, "Failed to start listener: %v\n", listenErr)
 		os.Exit(1)
@@ -33,28 +33,60 @@ func (server Server) ServerRun(files []string) {
 			continue
 		}
 		fmt.Fprintf(os.Stdout, "Connection established from %s\n", conn.RemoteAddr().String())
-		go server.serverhandler(conn, &files)
+		go s.serverHandler(conn, files)
 	}
 }
 
-func (server Server) serverhandler(conn net.Conn, fileList *[]string) {
+func (s Server) serverHandler(conn net.Conn, fileList []string) {
 	defer conn.Close()
 
 	writer := bufio.NewWriter(conn)
 
-	server.sendfiles(writer, fileList)
+	if err := s.serverWriteAllInfo(writer, fileList); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to write Info: %v\n", err)
+		os.Exit(1)
+	}
+	s.sendFilesToClient(writer, fileList)
 }
 
-func (server Server) sendfiles(w *bufio.Writer, fileList *[]string) {
-	for _, fv := range *fileList {
-		if err := server.serverwritehandler(w, fv); err != nil {
+func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
+	if writeErr := w.WriteByte(fileinfo.File_Count); writeErr != nil {
+		return writeErr
+	}
+	for _, fv := range fileList {
+		if _, writeErr := w.Write(fileinfo.EncodeJSON(fileinfo.NewInfo(utils.FileStat(fv)))); writeErr != nil {
+			return writeErr
+		}
+
+		if writeErr := w.WriteByte('\n'); writeErr != nil {
+			return writeErr
+		}
+	}
+
+	if _, writeErr := w.Write(fileinfo.EncodeJSON(fileinfo.NewInfo("END_OF_TRANSMISSION", -1))); writeErr != nil {
+		return writeErr
+	}
+
+	if writeErr := w.WriteByte('\n'); writeErr != nil {
+		return writeErr
+	}
+
+	if flushErr := w.Flush(); flushErr != nil {
+		return flushErr
+	}
+	return nil
+}
+
+func (s Server) sendFilesToClient(w *bufio.Writer, fileList []string) {
+	for _, fv := range fileList {
+		if err := s.serverWriteHandler(w, fv); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to write file %s: %v\n", fv, err)
 			continue
 		}
 	}
 }
 
-func (server Server) serverwritehandler(writer *bufio.Writer, file string) error {
+func (s Server) serverWriteHandler(writer *bufio.Writer, file string) error {
 	filename, filesize := utils.FileStat(file)
 
 	if writeErr := writer.WriteByte(fileinfo.File_Info); writeErr != nil {
