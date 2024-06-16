@@ -94,13 +94,19 @@ func (c Client) ClientRun(savepath string) {
 				if info.FileSize != -1 {
 					allCount += 1
 					allSize += info.FileSize
+					fmt.Fprintf(os.Stdout, "[%d] - %s - %d\n", allCount, info.FileName, info.FileSize)
 				} else {
 					break
 				}
 			}
 
 			fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %d\nconfirm recv[Y/n]: ", allCount, allSize)
-			readin()
+			confirm := readin()
+			if confirm == "yes" || confirm == "y" {
+
+			} else {
+				break
+			}
 		}
 	}
 }
@@ -114,5 +120,5 @@ func readin() string {
 		os.Exit(1)
 	}
 
-	return strings.TrimRight(data, "\r\n")
+	return strings.ToLower(strings.TrimRight(data, "\r\n"))
 }

@@ -53,6 +53,7 @@ func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 	if writeErr := w.WriteByte(fileinfo.File_Count); writeErr != nil {
 		return writeErr
 	}
+
 	for _, fv := range fileList {
 		if _, writeErr := w.Write(fileinfo.EncodeJSON(fileinfo.NewInfo(utils.FileStat(fv)))); writeErr != nil {
 			return writeErr
@@ -86,22 +87,22 @@ func (s Server) sendFilesToClient(w *bufio.Writer, fileList []string) {
 	}
 }
 
-func (s Server) serverWriteHandler(writer *bufio.Writer, file string) error {
+func (s Server) serverWriteHandler(w *bufio.Writer, file string) error {
 	filename, filesize := utils.FileStat(file)
 
-	if writeErr := writer.WriteByte(fileinfo.File_Info); writeErr != nil {
+	if writeErr := w.WriteByte(fileinfo.File_Info); writeErr != nil {
 		return writeErr
 	}
 
-	if _, writeErr := writer.Write(fileinfo.EncodeJSON(fileinfo.NewInfo(filename, filesize))); writeErr != nil {
+	if _, writeErr := w.Write(fileinfo.EncodeJSON(fileinfo.NewInfo(filename, filesize))); writeErr != nil {
 		return writeErr
 	}
 
-	if writeErr := writer.WriteByte('\n'); writeErr != nil {
+	if writeErr := w.WriteByte('\n'); writeErr != nil {
 		return writeErr
 	}
 
-	if flushErr := writer.Flush(); flushErr != nil {
+	if flushErr := w.Flush(); flushErr != nil {
 		return flushErr
 	}
 
@@ -111,19 +112,19 @@ func (s Server) serverWriteHandler(writer *bufio.Writer, file string) error {
 	}
 	defer fp.Close()
 
-	if writeErr := writer.WriteByte(fileinfo.File_Data); writeErr != nil {
+	if writeErr := w.WriteByte(fileinfo.File_Data); writeErr != nil {
 		return writeErr
 	}
 
-	if flushErr := writer.Flush(); flushErr != nil {
+	if flushErr := w.Flush(); flushErr != nil {
 		return flushErr
 	}
 
-	if _, copyErr := io.CopyN(writer, fp, filesize); copyErr != nil {
+	if _, copyErr := io.CopyN(w, fp, filesize); copyErr != nil {
 		return copyErr
 	}
 
-	if flushErr := writer.Flush(); flushErr != nil {
+	if flushErr := w.Flush(); flushErr != nil {
 		return flushErr
 	}
 
