@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"postfiles/fileinfo"
-	"strings"
 )
 
 type Client struct {
@@ -29,7 +28,6 @@ func (c Client) ClientRun(savepath string) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
 	var (
 		info     *fileinfo.FileInfo
 		allCount int   = 0
@@ -102,27 +100,6 @@ func (c Client) ClientRun(savepath string) {
 			}
 
 			fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %d\nconfirm recv[Y/n]: ", allCount, allSize)
-			confirm := readin()
-			if confirm == "yes" || confirm == "y" {
-				if _, writerErr := writer.Write(fileinfo.EncodeJSON(fileinfo.NewInfo("Confirm", -2))); writerErr != nil {
-					fmt.Fprintf(os.Stderr, "Failed to write JSON data: %v\n", writerErr)
-				}
-				if writerErr := writer.WriteByte('\n'); writerErr != nil {
-					fmt.Fprintf(os.Stderr, "Failed to write byte: %v\n", writerErr)
-				}
-			}
 		}
 	}
-}
-
-func readin() string {
-	reader := bufio.NewReader(os.Stdin)
-
-	data, readErr := reader.ReadString('\n')
-	if readErr != nil {
-		fmt.Fprintln(os.Stderr, "Error reading input:", readErr)
-		os.Exit(1)
-	}
-
-	return strings.ToLower(strings.TrimRight(data, "\r\n"))
 }

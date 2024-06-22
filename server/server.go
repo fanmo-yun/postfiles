@@ -41,15 +41,12 @@ func (s Server) serverHandler(conn net.Conn, fileList []string) {
 	defer conn.Close()
 
 	writer := bufio.NewWriter(conn)
-	reader := bufio.NewReader(conn)
 
 	if err := s.serverWriteAllInfo(writer, fileList); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write Info: %v\n", err)
 		os.Exit(1)
 	}
-	if s.recvConfirm(reader) {
-		s.sendFilesToClient(writer, fileList)
-	}
+	s.sendFilesToClient(writer, fileList)
 }
 
 func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
@@ -65,6 +62,10 @@ func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 		if writeErr := w.WriteByte('\n'); writeErr != nil {
 			return writeErr
 		}
+
+		if flushErr := w.Flush(); flushErr != nil {
+			return flushErr
+		}
 	}
 
 	if _, writeErr := w.Write(fileinfo.EncodeJSON(fileinfo.NewInfo("END_OF_TRANSMISSION", -1))); writeErr != nil {
@@ -79,15 +80,6 @@ func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 		return flushErr
 	}
 	return nil
-}
-
-func (s Server) recvConfirm(r *bufio.Reader) bool {
-	confirm_data, readErr := r.ReadBytes('\n')
-	if readErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to read: %v\n", readErr)
-	}
-	is_confirm := fileinfo.DecodeJSON(confirm_data[:])
-	return is_confirm.FileSize == -2
 }
 
 func (s Server) sendFilesToClient(w *bufio.Writer, fileList []string) {
