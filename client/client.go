@@ -109,5 +109,5 @@ func (c *Client) handleFileCount(reader *bufio.Reader) {
 		}
 	}
 
-	fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %.2f Mb\n", count, utils.ToMB(size))
+	fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %.2f Mb\n\n", count, utils.ToMB(size))
 }
