@@ -1,7 +1,6 @@
 package fileinfo
 
 const (
-	File_Info = iota
-	File_Data
+	File_Info_Data = iota
 	File_Count
 )

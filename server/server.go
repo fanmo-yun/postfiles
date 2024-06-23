@@ -39,45 +39,44 @@ func (s Server) ServerRun(files []string) {
 
 func (s Server) serverHandler(conn net.Conn, fileList []string) {
 	defer conn.Close()
-
 	writer := bufio.NewWriter(conn)
 
 	if err := s.serverWriteAllInfo(writer, fileList); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write Info: %v\n", err)
-		os.Exit(1)
+		return
 	}
 	s.sendFilesToClient(writer, fileList)
 }
 
 func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 	if writeErr := w.WriteByte(fileinfo.File_Count); writeErr != nil {
-		return writeErr
+		return fmt.Errorf("failed to write file count byte: %w", writeErr)
 	}
 
 	for _, fv := range fileList {
-		if _, writeErr := w.Write(fileinfo.EncodeJSON(fileinfo.NewInfo(utils.FileStat(fv)))); writeErr != nil {
-			return writeErr
+		fileInfo := fileinfo.NewInfo(utils.FileStat(fv))
+		encodedInfo := fileinfo.EncodeJSON(fileInfo)
+		if _, writeErr := w.Write(encodedInfo); writeErr != nil {
+			return fmt.Errorf("failed to write file info for %s: %w", fv, writeErr)
 		}
-
 		if writeErr := w.WriteByte('\n'); writeErr != nil {
-			return writeErr
+			return fmt.Errorf("failed to write newline for %s: %w", fv, writeErr)
 		}
-
 		if flushErr := w.Flush(); flushErr != nil {
-			return flushErr
+			return fmt.Errorf("failed to flush writer for %s: %w", fv, flushErr)
 		}
 	}
 
-	if _, writeErr := w.Write(fileinfo.EncodeJSON(fileinfo.NewInfo("END_OF_TRANSMISSION", -1))); writeErr != nil {
-		return writeErr
+	endInfo := fileinfo.NewInfo("END_OF_TRANSMISSION", -1)
+	encodedEndInfo := fileinfo.EncodeJSON(endInfo)
+	if _, writeErr := w.Write(encodedEndInfo); writeErr != nil {
+		return fmt.Errorf("failed to write end of transmission info: %w", writeErr)
 	}
-
 	if writeErr := w.WriteByte('\n'); writeErr != nil {
-		return writeErr
+		return fmt.Errorf("failed to write end of transmission newline: %w", writeErr)
 	}
-
 	if flushErr := w.Flush(); flushErr != nil {
-		return flushErr
+		return fmt.Errorf("failed to flush end of transmission info: %w", flushErr)
 	}
 	return nil
 }
@@ -93,44 +92,33 @@ func (s Server) sendFilesToClient(w *bufio.Writer, fileList []string) {
 
 func (s Server) serverWriteHandler(w *bufio.Writer, file string) error {
 	filename, filesize := utils.FileStat(file)
+	fileInfo := fileinfo.NewInfo(filename, filesize)
+	encodedInfo := fileinfo.EncodeJSON(fileInfo)
 
-	if writeErr := w.WriteByte(fileinfo.File_Info); writeErr != nil {
-		return writeErr
+	if writeErr := w.WriteByte(fileinfo.File_Info_Data); writeErr != nil {
+		return fmt.Errorf("failed to write file info byte: %w", writeErr)
 	}
-
-	if _, writeErr := w.Write(fileinfo.EncodeJSON(fileinfo.NewInfo(filename, filesize))); writeErr != nil {
-		return writeErr
+	if _, writeErr := w.Write(encodedInfo); writeErr != nil {
+		return fmt.Errorf("failed to write file info: %w", writeErr)
 	}
-
 	if writeErr := w.WriteByte('\n'); writeErr != nil {
-		return writeErr
+		return fmt.Errorf("failed to write newline after file info: %w", writeErr)
 	}
-
 	if flushErr := w.Flush(); flushErr != nil {
-		return flushErr
+		return fmt.Errorf("failed to flush writer after file info: %w", flushErr)
 	}
 
 	fp, openErr := os.Open(file)
 	if openErr != nil {
-		return openErr
+		return fmt.Errorf("failed to open file %s: %w", file, openErr)
 	}
 	defer fp.Close()
 
-	if writeErr := w.WriteByte(fileinfo.File_Data); writeErr != nil {
-		return writeErr
-	}
-
-	if flushErr := w.Flush(); flushErr != nil {
-		return flushErr
-	}
-
 	if _, copyErr := io.CopyN(w, fp, filesize); copyErr != nil {
-		return copyErr
+		return fmt.Errorf("failed to copy file data for %s: %w", file, copyErr)
 	}
-
 	if flushErr := w.Flush(); flushErr != nil {
-		return flushErr
+		return fmt.Errorf("failed to flush writer after file data: %w", flushErr)
 	}
-
 	return nil
 }
