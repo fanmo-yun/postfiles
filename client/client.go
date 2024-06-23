@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"postfiles/fileinfo"
+	"postfiles/utils"
 )
 
 type Client struct {
@@ -32,10 +33,6 @@ func (c Client) ClientRun(savepath string) {
 
 func (c Client) clientHandle(conn net.Conn, savepath string) {
 	reader := bufio.NewReader(conn)
-	var (
-		allCount int   = 0
-		allSize  int64 = 0
-	)
 
 	for {
 		msgType, readErr := reader.ReadByte()
@@ -53,7 +50,7 @@ func (c Client) clientHandle(conn net.Conn, savepath string) {
 			c.receiveFileData(reader, savepath, info)
 
 		case fileinfo.File_Count:
-			c.handleFileCount(reader, &allCount, &allSize)
+			c.handleFileCount(reader)
 		}
 	}
 }
@@ -79,7 +76,7 @@ func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *fi
 	}
 	defer fp.Close()
 
-	bar := init_bar(info.FileSize, info.FileName)
+	bar := utils.CreateBar(info.FileSize, info.FileName)
 
 	if _, copyErr := io.CopyN(io.MultiWriter(fp, bar), reader, info.FileSize); copyErr != nil {
 		if copyErr != io.EOF {
@@ -89,25 +86,28 @@ func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *fi
 	}
 }
 
-func (c *Client) handleFileCount(reader *bufio.Reader, allCount *int, allSize *int64) {
+func (c *Client) handleFileCount(reader *bufio.Reader) {
+	count := uint16(0)
+	size := int64(0)
+
 	for {
 		jsonData, readErr := reader.ReadBytes('\n')
 		if readErr != nil {
 			if readErr == io.EOF {
-				break
+				os.Exit(2)
 			}
 			fmt.Fprintf(os.Stderr, "Failed to read JSON data: %v\n", readErr)
 			os.Exit(2)
 		}
 		info := fileinfo.DecodeJSON(jsonData[:])
 		if info.FileSize != -1 {
-			*allCount += 1
-			*allSize += info.FileSize
-			fmt.Fprintf(os.Stdout, "[%d] - %s - %d\n", allCount, info.FileName, info.FileSize)
+			count += 1
+			size += info.FileSize
+			fmt.Fprintf(os.Stdout, "[%d] - %s - %.2f Mb\n", count, info.FileName, utils.ToMB(info.FileSize))
 		} else {
 			break
 		}
 	}
 
-	fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %d\n", *allCount, *allSize)
+	fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %.2f Mb\n", count, utils.ToMB(size))
 }
