@@ -22,7 +22,7 @@ var clientCmd = &cobra.Command{
 		if clientSavePath == "System Download Path" {
 			clientSavePath = utils.GetDownloadPath()
 		}
-		fmt.Printf("Starting client at %s:%d, saving to %s\n", ip, port, clientSavePath)
+		fmt.Fprintf(cmd.OutOrStderr(), "Starting client at %s:%d, saving to %s\n", ip, port, clientSavePath)
 		clt := client.NewClient(ip, port)
 		clt.ClientRun(clientSavePath)
 	},

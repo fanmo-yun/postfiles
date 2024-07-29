@@ -9,8 +9,8 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "postfiles",
-	Short: "Postfiles is a tool for file transfer.",
-	Long:  `PostFiles is a CLI tool for transferring files over TCP.`,
+	Short: "PostFiles is a tool for file transfer.",
+	Long:  "PostFiles is a CLI tool for transferring files over TCP.",
 }
 
 func Execute() {
