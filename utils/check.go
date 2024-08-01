@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"postfiles/exitcodes"
 	"unicode/utf8"
 
 	"golang.org/x/term"
@@ -23,13 +24,13 @@ func FileStat(file string) (string, int64) {
 
 	if os.IsNotExist(statErr) {
 		fmt.Fprintf(os.Stderr, "file: %s does not exist\n", file)
-		os.Exit(1)
+		os.Exit(exitcodes.ErrFileStat)
 	} else if info.IsDir() {
 		fmt.Fprintf(os.Stderr, "file: %s is a directory\n", file)
-		os.Exit(1)
+		os.Exit(exitcodes.ErrFileStat)
 	} else if statErr != nil {
 		fmt.Fprintf(os.Stderr, "error stating file: %s\n", statErr)
-		os.Exit(1)
+		os.Exit(exitcodes.ErrFileStat)
 	}
 
 	return filepath.Base(info.Name()), info.Size()
@@ -43,12 +44,12 @@ func ValidateServerIPAndPort(ip string, port int) (string, int) {
 		temp_ip = GenIP()
 	} else if !IsvalidIP(temp_ip) {
 		fmt.Fprintf(os.Stderr, "Invalid IP: %s\n", temp_ip)
-		os.Exit(1)
+		os.Exit(exitcodes.ErrIPAndPort)
 	}
 
 	if !IsvalidPort(temp_port) {
 		fmt.Fprintf(os.Stderr, "Invalid Port: %d\n", temp_port)
-		os.Exit(1)
+		os.Exit(exitcodes.ErrIPAndPort)
 	}
 
 	return temp_ip, temp_port
@@ -62,12 +63,12 @@ func ValidateClientIPAndPort(ip string, port int) (string, int) {
 		temp_ip = GenIP()
 	} else if !IsvalidIP(temp_ip) {
 		fmt.Fprintf(os.Stderr, "Invalid IP: %s\n", temp_ip)
-		os.Exit(1)
+		os.Exit(exitcodes.ErrIPAndPort)
 	}
 
 	if !IsvalidPort(temp_port) {
 		fmt.Fprintf(os.Stderr, "Invalid Port: %d\n", temp_port)
-		os.Exit(1)
+		os.Exit(exitcodes.ErrIPAndPort)
 	}
 
 	return temp_ip, temp_port
@@ -76,6 +77,7 @@ func ValidateClientIPAndPort(ip string, port int) (string, int) {
 func IsTerminal() {
 	if !(term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stderr.Fd())) && term.IsTerminal(int(os.Stdin.Fd()))) {
 		fmt.Fprintf(os.Stderr, "Not in a terminal\n")
+		os.Exit(exitcodes.ErrNotTerminal)
 	}
 }
 

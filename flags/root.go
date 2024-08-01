@@ -3,6 +3,7 @@ package flags
 import (
 	"fmt"
 	"os"
+	"postfiles/exitcodes"
 
 	"github.com/spf13/cobra"
 )
@@ -15,8 +16,8 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if executeErr := rootCmd.Execute(); executeErr != nil {
-		fmt.Fprintf(os.Stderr, "%s", executeErr)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "%s\n", executeErr)
+		os.Exit(exitcodes.ErrFlag)
 	}
 }
 

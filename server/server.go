@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"postfiles/exitcodes"
 	"postfiles/fileinfo"
 	"postfiles/utils"
 )
@@ -23,7 +24,7 @@ func (s Server) ServerRun(files []string) {
 	listener, listenErr := net.Listen("tcp", fmt.Sprintf("%s:%d", s.IP, s.Port))
 	if listenErr != nil {
 		fmt.Fprintf(os.Stderr, "Failed to start listener: %s\n", listenErr)
-		os.Exit(1)
+		os.Exit(exitcodes.ErrServer)
 	}
 
 	for {

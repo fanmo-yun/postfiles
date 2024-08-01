@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"postfiles/exitcodes"
 	"postfiles/fileinfo"
 	"postfiles/utils"
 )
@@ -24,7 +25,7 @@ func (c Client) ClientRun(savepath string) {
 	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", c.IP, c.Port))
 	if connErr != nil {
 		fmt.Fprintf(os.Stderr, "Failed to connect: %s\n", connErr)
-		os.Exit(2)
+		os.Exit(exitcodes.ErrClient)
 	}
 	defer conn.Close()
 
@@ -41,7 +42,7 @@ func (c Client) clientHandle(conn net.Conn, savepath string) {
 				break
 			}
 			fmt.Fprintf(os.Stderr, "Failed to read message type: %s\n", readErr)
-			os.Exit(2)
+			os.Exit(exitcodes.ErrClient)
 		}
 
 		switch msgType {
@@ -59,10 +60,10 @@ func (c *Client) readFileInfo(reader *bufio.Reader) *fileinfo.FileInfo {
 	jsonData, readErr := reader.ReadBytes('\n')
 	if readErr != nil {
 		if readErr == io.EOF {
-			os.Exit(2)
+			os.Exit(exitcodes.ErrClient)
 		}
 		fmt.Fprintf(os.Stderr, "Failed to read JSON data: %s\n", readErr)
-		os.Exit(2)
+		os.Exit(exitcodes.ErrClient)
 	}
 	return fileinfo.DecodeJSON(jsonData[:])
 }
@@ -72,7 +73,7 @@ func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *fi
 	fp, createErr := os.Create(filePath)
 	if createErr != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create file %s: %s\n", filePath, createErr)
-		os.Exit(2)
+		os.Exit(exitcodes.ErrClient)
 	}
 	defer fp.Close()
 
@@ -81,7 +82,7 @@ func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *fi
 	if _, copyErr := io.CopyN(io.MultiWriter(fp, bar), reader, info.FileSize); copyErr != nil {
 		if copyErr != io.EOF {
 			fmt.Fprintf(os.Stderr, "Failed to copy file data for %s: %s\n", filePath, copyErr)
-			os.Exit(2)
+			os.Exit(exitcodes.ErrClient)
 		}
 	}
 }
@@ -94,10 +95,10 @@ func (c *Client) handleFileCount(reader *bufio.Reader) {
 		jsonData, readErr := reader.ReadBytes('\n')
 		if readErr != nil {
 			if readErr == io.EOF {
-				os.Exit(2)
+				os.Exit(exitcodes.ErrClient)
 			}
 			fmt.Fprintf(os.Stderr, "Failed to read JSON data: %s\n", readErr)
-			os.Exit(2)
+			os.Exit(exitcodes.ErrClient)
 		}
 		info := fileinfo.DecodeJSON(jsonData[:])
 		if info.FileSize != -1 {
