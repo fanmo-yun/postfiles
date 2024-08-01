@@ -6,9 +6,11 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"postfiles/exitcodes"
 	"postfiles/fileinfo"
 	"postfiles/utils"
+	"syscall"
 )
 
 type Server struct {
@@ -26,12 +28,29 @@ func (s Server) ServerRun(files []string) {
 		fmt.Fprintf(os.Stderr, "Failed to start listener: %s\n", listenErr)
 		os.Exit(exitcodes.ErrServer)
 	}
+	defer listener.Close()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	done := make(chan bool)
+
+	go func() {
+		<-quit
+		fmt.Println("Shutting down server...")
+		listener.Close()
+		done <- true
+	}()
 
 	for {
 		conn, connErr := listener.Accept()
 		if connErr != nil {
-			fmt.Fprintf(os.Stdout, "Failed to accept connection: %s\n", connErr)
-			continue
+			select {
+			case <-done:
+				return
+			default:
+				fmt.Fprintf(os.Stdout, "Failed to accept connection: %s\n", connErr)
+				continue
+			}
 		}
 		fmt.Fprintf(os.Stdout, "Connection established from %s\n", conn.RemoteAddr().String())
 		go s.serverHandler(conn, files)
