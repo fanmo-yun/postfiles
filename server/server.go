@@ -42,19 +42,27 @@ func (s Server) ServerRun(files []string) {
 	}()
 
 	for {
-		conn, connErr := listener.Accept()
-		if connErr != nil {
-			select {
-			case <-done:
-				return
-			default:
-				fmt.Fprintf(os.Stdout, "Failed to accept connection: %s\n", connErr)
-				continue
-			}
+		select {
+		case <-done:
+			fmt.Println("Server stopped")
+			return
+		default:
+			s.acceptConnection(listener, files)
 		}
-		fmt.Fprintf(os.Stdout, "Connection established from %s\n", conn.RemoteAddr().String())
-		go s.serverHandler(conn, files)
 	}
+}
+
+func (s Server) acceptConnection(listener net.Listener, files []string) {
+	conn, connErr := listener.Accept()
+	if connErr != nil {
+		if opErr, ok := connErr.(*net.OpError); ok && opErr.Op == "accept" {
+			return
+		}
+		fmt.Fprintf(os.Stdout, "Failed to accept connection: %s\n", connErr)
+		return
+	}
+	fmt.Fprintf(os.Stdout, "Connection established from %s\n", conn.RemoteAddr().String())
+	go s.serverHandler(conn, files)
 }
 
 func (s Server) serverHandler(conn net.Conn, fileList []string) {
