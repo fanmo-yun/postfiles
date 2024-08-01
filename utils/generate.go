@@ -13,7 +13,7 @@ import (
 func GenIP() string {
 	conn, connErr := net.Dial("udp", "114.114.114.114:80")
 	if connErr != nil {
-		fmt.Fprintf(os.Stderr, "Error connecting to UDP server: %v\n", connErr)
+		fmt.Fprintf(os.Stderr, "Error connecting to UDP server: %s\n", connErr)
 		os.Exit(1)
 	}
 	defer conn.Close()
@@ -23,7 +23,7 @@ func GenIP() string {
 func GetDownloadPath() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting home directory: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error getting home directory: %s\n", err)
 		os.Exit(1)
 	}
 	downloadDir := filepath.Join(homeDir, "Downloads")
@@ -31,7 +31,7 @@ func GetDownloadPath() string {
 		fmt.Fprintf(os.Stderr, "Download directory does not exist: %s\n", downloadDir)
 		os.Exit(1)
 	} else if dirErr != nil {
-		fmt.Fprintf(os.Stderr, "Error stating download directory: %v\n", dirErr)
+		fmt.Fprintf(os.Stderr, "Error stating download directory: %s\n", dirErr)
 		os.Exit(1)
 	}
 	return downloadDir

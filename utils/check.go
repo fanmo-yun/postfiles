@@ -28,7 +28,7 @@ func FileStat(file string) (string, int64) {
 		fmt.Fprintf(os.Stderr, "file: %s is a directory\n", file)
 		os.Exit(1)
 	} else if statErr != nil {
-		fmt.Fprintf(os.Stderr, "error stating file: %v\n", statErr)
+		fmt.Fprintf(os.Stderr, "error stating file: %s\n", statErr)
 		os.Exit(1)
 	}
 

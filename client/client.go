@@ -23,7 +23,7 @@ func NewClient(IP string, Port int) *Client {
 func (c Client) ClientRun(savepath string) {
 	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", c.IP, c.Port))
 	if connErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to connect: %v\n", connErr)
+		fmt.Fprintf(os.Stderr, "Failed to connect: %s\n", connErr)
 		os.Exit(2)
 	}
 	defer conn.Close()
@@ -40,7 +40,7 @@ func (c Client) clientHandle(conn net.Conn, savepath string) {
 			if readErr == io.EOF {
 				break
 			}
-			fmt.Fprintf(os.Stderr, "Failed to read message type: %v\n", readErr)
+			fmt.Fprintf(os.Stderr, "Failed to read message type: %s\n", readErr)
 			os.Exit(2)
 		}
 
@@ -61,7 +61,7 @@ func (c *Client) readFileInfo(reader *bufio.Reader) *fileinfo.FileInfo {
 		if readErr == io.EOF {
 			os.Exit(2)
 		}
-		fmt.Fprintf(os.Stderr, "Failed to read JSON data: %v\n", readErr)
+		fmt.Fprintf(os.Stderr, "Failed to read JSON data: %s\n", readErr)
 		os.Exit(2)
 	}
 	return fileinfo.DecodeJSON(jsonData[:])
@@ -71,7 +71,7 @@ func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *fi
 	filePath := filepath.Join(savepath, info.FileName)
 	fp, createErr := os.Create(filePath)
 	if createErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create file %s: %v\n", filePath, createErr)
+		fmt.Fprintf(os.Stderr, "Failed to create file %s: %s\n", filePath, createErr)
 		os.Exit(2)
 	}
 	defer fp.Close()
@@ -80,7 +80,7 @@ func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *fi
 
 	if _, copyErr := io.CopyN(io.MultiWriter(fp, bar), reader, info.FileSize); copyErr != nil {
 		if copyErr != io.EOF {
-			fmt.Fprintf(os.Stderr, "Failed to copy file data for %s: %v\n", filePath, copyErr)
+			fmt.Fprintf(os.Stderr, "Failed to copy file data for %s: %s\n", filePath, copyErr)
 			os.Exit(2)
 		}
 	}
@@ -96,7 +96,7 @@ func (c *Client) handleFileCount(reader *bufio.Reader) {
 			if readErr == io.EOF {
 				os.Exit(2)
 			}
-			fmt.Fprintf(os.Stderr, "Failed to read JSON data: %v\n", readErr)
+			fmt.Fprintf(os.Stderr, "Failed to read JSON data: %s\n", readErr)
 			os.Exit(2)
 		}
 		info := fileinfo.DecodeJSON(jsonData[:])
