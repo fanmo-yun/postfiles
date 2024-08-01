@@ -110,16 +110,16 @@ func (c *Client) handleFileCount(reader *bufio.Reader) {
 			os.Exit(exitcodes.ErrClient)
 		}
 		info := fileinfo.DecodeJSON(jsonData[:])
-		if info.FileSize != -1 {
+		if info.FileSize != fileinfo.End_Of_Transmission {
 			count += 1
 			size += info.FileSize
-			fmt.Fprintf(os.Stdout, "[%d] - %s - %.2f Mb\n", count, info.FileName, utils.ToMB(info.FileSize))
+			fmt.Fprintf(os.Stdout, "[%d] - %s - %.2f MB\n", count, info.FileName, utils.ToMB(info.FileSize))
 		} else {
 			break
 		}
 	}
 
-	fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %.2f Mb\n\n", count, utils.ToMB(size))
+	fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %.2f MB\n\n", count, utils.ToMB(size))
 }
 
 func (c *Client) handleConfirm() bool {
@@ -136,7 +136,7 @@ func (c *Client) handleConfirm() bool {
 }
 
 func (c *Client) sendConfirm(w *bufio.Writer) error {
-	confirmInfo := fileinfo.NewInfo("CONFIRM_ACCEPT", -2)
+	confirmInfo := fileinfo.NewInfo("CONFIRM_ACCEPT", fileinfo.Confirm_Accept)
 	encodedInfo := fileinfo.EncodeJSON(confirmInfo)
 
 	if _, writeErr := w.Write(encodedInfo); writeErr != nil {

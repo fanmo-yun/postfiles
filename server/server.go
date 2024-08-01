@@ -73,7 +73,7 @@ func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 		}
 	}
 
-	endInfo := fileinfo.NewInfo("END_OF_TRANSMISSION", -1)
+	endInfo := fileinfo.NewInfo("END_OF_TRANSMISSION", fileinfo.End_Of_Transmission)
 	encodedEndInfo := fileinfo.EncodeJSON(endInfo)
 	if _, writeErr := w.Write(encodedEndInfo); writeErr != nil {
 		return fmt.Errorf("failed to write end of transmission info: %s", writeErr)
@@ -93,7 +93,7 @@ func (s Server) recvClientConfirm(r *bufio.Reader) (bool, error) {
 		return false, fmt.Errorf("failed to read confirm info: %s", readErr)
 	}
 	info := fileinfo.DecodeJSON(confirmData)
-	if info.FileSize == -2 {
+	if info.FileSize == fileinfo.Confirm_Accept {
 		return true, nil
 	}
 	return false, nil
