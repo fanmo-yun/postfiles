@@ -10,6 +10,7 @@ import (
 	"postfiles/exitcodes"
 	"postfiles/fileinfo"
 	"postfiles/utils"
+	"strings"
 )
 
 type Client struct {
@@ -34,7 +35,9 @@ func (c Client) ClientRun(savepath string) {
 
 func (c Client) clientHandle(conn net.Conn, savepath string) {
 	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
 
+LOOP:
 	for {
 		msgType, readErr := reader.ReadByte()
 		if readErr != nil {
@@ -52,6 +55,12 @@ func (c Client) clientHandle(conn net.Conn, savepath string) {
 
 		case fileinfo.File_Count:
 			c.handleFileCount(reader)
+			if !c.handleConfirm() {
+				break LOOP
+			}
+			if err := c.sendConfirm(writer); err != nil {
+				break LOOP
+			}
 		}
 	}
 }
@@ -111,4 +120,33 @@ func (c *Client) handleFileCount(reader *bufio.Reader) {
 	}
 
 	fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %.2f Mb\n\n", count, utils.ToMB(size))
+}
+
+func (c *Client) handleConfirm() bool {
+	fmt.Fprintf(os.Stdout, "Confirm accept[Y/n]: ")
+	confirm := utils.Readin()
+	switch strings.ToLower(confirm) {
+	case "y", "yes":
+		return true
+	case "n", "no":
+		return false
+	default:
+		return false
+	}
+}
+
+func (c *Client) sendConfirm(w *bufio.Writer) error {
+	confirmInfo := fileinfo.NewInfo("CONFIRM_ACCEPT", -2)
+	encodedInfo := fileinfo.EncodeJSON(confirmInfo)
+
+	if _, writeErr := w.Write(encodedInfo); writeErr != nil {
+		return fmt.Errorf("failed to write file info: %s", writeErr)
+	}
+	if writeErr := w.WriteByte('\n'); writeErr != nil {
+		return fmt.Errorf("failed to write newline after file info: %s", writeErr)
+	}
+	if flushErr := w.Flush(); flushErr != nil {
+		return fmt.Errorf("failed to flush writer after file info: %s", flushErr)
+	}
+	return nil
 }

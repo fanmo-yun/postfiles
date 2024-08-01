@@ -40,10 +40,15 @@ func (s Server) ServerRun(files []string) {
 
 func (s Server) serverHandler(conn net.Conn, fileList []string) {
 	defer conn.Close()
+	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
 	if err := s.serverWriteAllInfo(writer, fileList); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write Info: %s\n", err)
+		return
+	}
+	isConfirm, recvErr := s.recvClientConfirm(reader)
+	if recvErr != nil || !isConfirm {
 		return
 	}
 	s.sendFilesToClient(writer, fileList)
@@ -80,6 +85,18 @@ func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 		return fmt.Errorf("failed to flush end of transmission info: %s", flushErr)
 	}
 	return nil
+}
+
+func (s Server) recvClientConfirm(r *bufio.Reader) (bool, error) {
+	confirmData, readErr := r.ReadBytes('\n')
+	if readErr != nil {
+		return false, fmt.Errorf("failed to read confirm info: %s", readErr)
+	}
+	info := fileinfo.DecodeJSON(confirmData)
+	if info.FileSize == -2 {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (s Server) sendFilesToClient(w *bufio.Writer, fileList []string) {
