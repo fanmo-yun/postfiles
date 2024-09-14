@@ -15,6 +15,8 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
+	cobra.EnableCommandSorting = false
+
 	if executeErr := rootCmd.Execute(); executeErr != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", executeErr)
 		os.Exit(exitcodes.ErrFlag)
