@@ -10,5 +10,5 @@ postfiles server -i 127.0.0.1 -p 9090 -f file1.txt -f file2.txt
 ```
 -- client-side mode
 ```bash
-postfiles client -i 192.168.1.100 -p 9090 -s /path/to/save
+postfiles client -i 127.0.0.1 -p 9090 -s /path/to/save
 ```
