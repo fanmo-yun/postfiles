@@ -7,8 +7,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"postfiles/datainfo"
 	"postfiles/exitcodes"
-	"postfiles/fileinfo"
 	"postfiles/utils"
 	"syscall"
 )
@@ -82,13 +82,11 @@ func (s Server) serverHandler(conn net.Conn, fileList []string) {
 }
 
 func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
-	if writeErr := w.WriteByte(fileinfo.File_Count); writeErr != nil {
-		return fmt.Errorf("failed to write file count byte: %s", writeErr)
-	}
-
 	for _, fv := range fileList {
-		fileInfo := fileinfo.NewInfo(utils.FileStat(fv))
-		encodedInfo := fileinfo.EncodeJSON(fileInfo)
+		filename, filesize := utils.FileStat(fv)
+		info := datainfo.NewInfo(filename, filesize, datainfo.File_Count)
+		encodedInfo := datainfo.EncodeJSON(info)
+
 		if _, writeErr := w.Write(encodedInfo); writeErr != nil {
 			return fmt.Errorf("failed to write file info for %s: %s", fv, writeErr)
 		}
@@ -100,8 +98,8 @@ func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 		}
 	}
 
-	endInfo := fileinfo.NewInfo("END_OF_TRANSMISSION", fileinfo.End_Of_Transmission)
-	encodedEndInfo := fileinfo.EncodeJSON(endInfo)
+	endInfo := datainfo.NewInfo("End_Of_Transmission", 0, datainfo.End_Of_Transmission)
+	encodedEndInfo := datainfo.EncodeJSON(endInfo)
 	if _, writeErr := w.Write(encodedEndInfo); writeErr != nil {
 		return fmt.Errorf("failed to write end of transmission info: %s", writeErr)
 	}
@@ -119,8 +117,8 @@ func (s Server) recvClientConfirm(r *bufio.Reader) (bool, error) {
 	if readErr != nil {
 		return false, fmt.Errorf("failed to read confirm info: %s", readErr)
 	}
-	info := fileinfo.DecodeJSON(confirmData)
-	if info.FileSize == fileinfo.Confirm_Accept {
+	info := datainfo.DecodeJSON(confirmData)
+	if info.Type == datainfo.Confirm_Accept {
 		return true, nil
 	}
 	return false, nil
@@ -137,12 +135,9 @@ func (s Server) sendFilesToClient(w *bufio.Writer, fileList []string) {
 
 func (s Server) serverWriteHandler(w *bufio.Writer, file string) error {
 	filename, filesize := utils.FileStat(file)
-	fileInfo := fileinfo.NewInfo(filename, filesize)
-	encodedInfo := fileinfo.EncodeJSON(fileInfo)
+	info := datainfo.NewInfo(filename, filesize, datainfo.File_Info_Data)
+	encodedInfo := datainfo.EncodeJSON(info)
 
-	if writeErr := w.WriteByte(fileinfo.File_Info_Data); writeErr != nil {
-		return fmt.Errorf("failed to write file info byte: %s", writeErr)
-	}
 	if _, writeErr := w.Write(encodedInfo); writeErr != nil {
 		return fmt.Errorf("failed to write file info: %s", writeErr)
 	}

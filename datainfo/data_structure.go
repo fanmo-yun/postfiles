@@ -1,4 +1,4 @@
-package fileinfo
+package datainfo
 
 import (
 	"encoding/json"
@@ -7,16 +7,17 @@ import (
 	"postfiles/exitcodes"
 )
 
-type FileInfo struct {
-	FileName string `json:"filename"`
-	FileSize int64  `json:"filesize"`
+type DataInfo struct {
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+	Type int8   `json:"type"`
 }
 
-func NewInfo(filename string, filesize int64) *FileInfo {
-	return &FileInfo{filename, filesize}
+func NewInfo(name string, size int64, datatype int8) *DataInfo {
+	return &DataInfo{name, size, datatype}
 }
 
-func EncodeJSON(info *FileInfo) []byte {
+func EncodeJSON(info *DataInfo) []byte {
 	jsonData, encodeErr := json.Marshal(info)
 	if encodeErr != nil {
 		fmt.Fprintf(os.Stderr, "Error encoding JSON: %s", encodeErr)
@@ -25,8 +26,8 @@ func EncodeJSON(info *FileInfo) []byte {
 	return jsonData
 }
 
-func DecodeJSON(info []byte) *FileInfo {
-	var fileinfo FileInfo
+func DecodeJSON(info []byte) *DataInfo {
+	var fileinfo DataInfo
 	if err := json.Unmarshal(info, &fileinfo); err != nil {
 		fmt.Fprintf(os.Stderr, "Error unmarshal JSON: %s", err)
 		os.Exit(exitcodes.ErrJsonUnmarshal)

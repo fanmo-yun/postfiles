@@ -2,3 +2,4 @@ postfiles.exe
 postfiles
 go.sum
 build/
+tmp/

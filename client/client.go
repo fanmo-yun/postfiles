@@ -7,19 +7,21 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"postfiles/datainfo"
 	"postfiles/exitcodes"
-	"postfiles/fileinfo"
 	"postfiles/utils"
 	"strings"
 )
 
 type Client struct {
-	IP   string
-	Port int
+	IP    string
+	Port  int
+	count int16
+	size  int64
 }
 
 func NewClient(IP string, Port int) *Client {
-	return &Client{IP, Port}
+	return &Client{IP, Port, 0, 0}
 }
 
 func (c Client) ClientRun(savepath string) {
@@ -39,7 +41,7 @@ func (c Client) clientHandle(conn net.Conn, savepath string) {
 
 LOOP:
 	for {
-		msgType, readErr := reader.ReadByte()
+		msg, readErr := reader.ReadBytes('\n')
 		if readErr != nil {
 			if readErr == io.EOF {
 				break
@@ -47,14 +49,17 @@ LOOP:
 			fmt.Fprintf(os.Stderr, "Failed to read message type: %s\n", readErr)
 			os.Exit(exitcodes.ErrClient)
 		}
+		decMsg := datainfo.DecodeJSON(msg)
 
-		switch msgType {
-		case fileinfo.File_Info_Data:
-			info := c.readFileInfo(reader)
-			c.receiveFileData(reader, savepath, info)
+		switch decMsg.Type {
+		case datainfo.File_Info_Data:
+			c.receiveFileData(reader, savepath, decMsg)
 
-		case fileinfo.File_Count:
-			c.handleFileCount(reader)
+		case datainfo.File_Count:
+			c.handleFileCount(decMsg)
+
+		default:
+			fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %.2f MB\n\n", c.count, utils.ToMB(c.size))
 			if !c.handleConfirm() {
 				break LOOP
 			}
@@ -65,20 +70,8 @@ LOOP:
 	}
 }
 
-func (c *Client) readFileInfo(reader *bufio.Reader) *fileinfo.FileInfo {
-	jsonData, readErr := reader.ReadBytes('\n')
-	if readErr != nil {
-		if readErr == io.EOF {
-			os.Exit(exitcodes.ErrClient)
-		}
-		fmt.Fprintf(os.Stderr, "Failed to read JSON data: %s\n", readErr)
-		os.Exit(exitcodes.ErrClient)
-	}
-	return fileinfo.DecodeJSON(jsonData[:])
-}
-
-func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *fileinfo.FileInfo) {
-	filePath := filepath.Join(savepath, info.FileName)
+func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *datainfo.DataInfo) {
+	filePath := filepath.Join(savepath, info.Name)
 	fp, createErr := os.Create(filePath)
 	if createErr != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create file %s: %s\n", filePath, createErr)
@@ -86,9 +79,9 @@ func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *fi
 	}
 	defer fp.Close()
 
-	bar := utils.CreateBar(info.FileSize, info.FileName)
+	bar := utils.CreateBar(info.Size, info.Name)
 
-	if _, copyErr := io.CopyN(io.MultiWriter(fp, bar), reader, info.FileSize); copyErr != nil {
+	if _, copyErr := io.CopyN(io.MultiWriter(fp, bar), reader, info.Size); copyErr != nil {
 		if copyErr != io.EOF {
 			fmt.Fprintf(os.Stderr, "Failed to copy file data for %s: %s\n", filePath, copyErr)
 			os.Exit(exitcodes.ErrClient)
@@ -96,30 +89,10 @@ func (c *Client) receiveFileData(reader *bufio.Reader, savepath string, info *fi
 	}
 }
 
-func (c *Client) handleFileCount(reader *bufio.Reader) {
-	count := uint16(0)
-	size := int64(0)
-
-	for {
-		jsonData, readErr := reader.ReadBytes('\n')
-		if readErr != nil {
-			if readErr == io.EOF {
-				os.Exit(exitcodes.ErrClient)
-			}
-			fmt.Fprintf(os.Stderr, "Failed to read JSON data: %s\n", readErr)
-			os.Exit(exitcodes.ErrClient)
-		}
-		info := fileinfo.DecodeJSON(jsonData[:])
-		if info.FileSize != fileinfo.End_Of_Transmission {
-			count += 1
-			size += info.FileSize
-			fmt.Fprintf(os.Stdout, "[%d] - %s - %.2f MB\n", count, info.FileName, utils.ToMB(info.FileSize))
-		} else {
-			break
-		}
-	}
-
-	fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %.2f MB\n\n", count, utils.ToMB(size))
+func (c *Client) handleFileCount(info *datainfo.DataInfo) {
+	c.count += 1
+	c.size += info.Size
+	fmt.Fprintf(os.Stdout, "[%d] - %s - %.2f MB\n", c.count, info.Name, utils.ToMB(info.Size))
 }
 
 func (c *Client) handleConfirm() bool {
@@ -136,8 +109,8 @@ func (c *Client) handleConfirm() bool {
 }
 
 func (c *Client) sendConfirm(w *bufio.Writer) error {
-	confirmInfo := fileinfo.NewInfo("CONFIRM_ACCEPT", fileinfo.Confirm_Accept)
-	encodedInfo := fileinfo.EncodeJSON(confirmInfo)
+	confirmInfo := datainfo.NewInfo("Confirm_Accept", 0, datainfo.Confirm_Accept)
+	encodedInfo := datainfo.EncodeJSON(confirmInfo)
 
 	if _, writeErr := w.Write(encodedInfo); writeErr != nil {
 		return fmt.Errorf("failed to write file info: %s", writeErr)
