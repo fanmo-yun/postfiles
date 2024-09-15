@@ -3,3 +3,4 @@ postfiles
 go.sum
 build/
 tmp/
+test/
