@@ -82,19 +82,19 @@ func (s Server) serverHandler(conn net.Conn, fileList []string) {
 }
 
 func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
-	for _, fv := range fileList {
-		filename, filesize := utils.FileStat(fv)
-		info := datainfo.NewInfo(filename, filesize, datainfo.File_Count)
+	for _, fileName := range fileList {
+		name, size := utils.FileStat(fileName)
+		info := datainfo.NewInfo(name, size, datainfo.File_Count)
 		encodedInfo := datainfo.EncodeJSON(info)
 
 		if _, writeErr := w.Write(encodedInfo); writeErr != nil {
-			return fmt.Errorf("failed to write file info for %s: %s", fv, writeErr)
+			return fmt.Errorf("failed to write file info for %s: %s", fileName, writeErr)
 		}
 		if writeErr := w.WriteByte('\n'); writeErr != nil {
-			return fmt.Errorf("failed to write newline for %s: %s", fv, writeErr)
+			return fmt.Errorf("failed to write newline for %s: %s", fileName, writeErr)
 		}
 		if flushErr := w.Flush(); flushErr != nil {
-			return fmt.Errorf("failed to flush writer for %s: %s", fv, flushErr)
+			return fmt.Errorf("failed to flush writer for %s: %s", fileName, flushErr)
 		}
 	}
 
@@ -125,9 +125,9 @@ func (s Server) recvClientConfirm(r *bufio.Reader) (bool, error) {
 }
 
 func (s Server) sendFilesToClient(w *bufio.Writer, fileList []string) {
-	for _, fv := range fileList {
-		if err := s.serverWriteHandler(w, fv); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to write file %s: %s\n", fv, err)
+	for _, fileName := range fileList {
+		if err := s.serverWriteHandler(w, fileName); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write file %s: %s\n", fileName, err)
 			continue
 		}
 	}
