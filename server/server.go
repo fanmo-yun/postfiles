@@ -85,7 +85,11 @@ func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 	for _, fileName := range fileList {
 		name, size := utils.FileStat(fileName)
 		info := datainfo.NewInfo(name, size, datainfo.File_Count)
-		encodedInfo := datainfo.EncodeJSON(info)
+		encodedInfo, encodeErr := datainfo.EncodeJSON(info)
+		if encodeErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to encode info: %v\n", encodeErr)
+			continue
+		}
 
 		if _, writeErr := w.Write(encodedInfo); writeErr != nil {
 			return fmt.Errorf("failed to write file info for %s: %s", fileName, writeErr)
@@ -99,7 +103,10 @@ func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 	}
 
 	endInfo := datainfo.NewInfo("End_Of_Transmission", 0, datainfo.End_Of_Transmission)
-	encodedEndInfo := datainfo.EncodeJSON(endInfo)
+	encodedEndInfo, encodeErr := datainfo.EncodeJSON(endInfo)
+	if encodeErr != nil {
+		return encodeErr
+	}
 	if _, writeErr := w.Write(encodedEndInfo); writeErr != nil {
 		return fmt.Errorf("failed to write end of transmission info: %s", writeErr)
 	}
@@ -117,7 +124,10 @@ func (s Server) recvClientConfirm(r *bufio.Reader) (bool, error) {
 	if readErr != nil {
 		return false, fmt.Errorf("failed to read confirm info: %s", readErr)
 	}
-	info := datainfo.DecodeJSON(confirmData)
+	info, decodeErr := datainfo.DecodeJSON(confirmData)
+	if decodeErr != nil {
+		return false, decodeErr
+	}
 	if info.Type == datainfo.Confirm_Accept {
 		return true, nil
 	}
@@ -136,7 +146,10 @@ func (s Server) sendFilesToClient(w *bufio.Writer, fileList []string) {
 func (s Server) serverWriteHandler(w *bufio.Writer, file string) error {
 	filename, filesize := utils.FileStat(file)
 	info := datainfo.NewInfo(filename, filesize, datainfo.File_Info_Data)
-	encodedInfo := datainfo.EncodeJSON(info)
+	encodedInfo, encodeErr := datainfo.EncodeJSON(info)
+	if encodeErr != nil {
+		return encodeErr
+	}
 
 	if _, writeErr := w.Write(encodedInfo); writeErr != nil {
 		return fmt.Errorf("failed to write file info: %s", writeErr)

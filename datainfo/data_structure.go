@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"postfiles/exitcodes"
 )
 
 type DataInfo struct {
@@ -17,20 +16,20 @@ func NewInfo(name string, size int64, datatype int8) *DataInfo {
 	return &DataInfo{name, size, datatype}
 }
 
-func EncodeJSON(info *DataInfo) []byte {
+func EncodeJSON(info *DataInfo) ([]byte, error) {
 	jsonData, encodeErr := json.Marshal(info)
 	if encodeErr != nil {
 		fmt.Fprintf(os.Stderr, "Error encoding JSON: %s", encodeErr)
-		os.Exit(exitcodes.ErrJsonEncoding)
+		return nil, encodeErr
 	}
-	return jsonData
+	return jsonData, nil
 }
 
-func DecodeJSON(info []byte) *DataInfo {
+func DecodeJSON(info []byte) (*DataInfo, error) {
 	var fileinfo DataInfo
-	if err := json.Unmarshal(info, &fileinfo); err != nil {
-		fmt.Fprintf(os.Stderr, "Error unmarshal JSON: %s", err)
-		os.Exit(exitcodes.ErrJsonUnmarshal)
+	if unmarshalErr := json.Unmarshal(info, &fileinfo); unmarshalErr != nil {
+		fmt.Fprintf(os.Stderr, "Error unmarshal JSON: %s", unmarshalErr)
+		return nil, unmarshalErr
 	}
-	return &fileinfo
+	return &fileinfo, nil
 }

@@ -44,12 +44,16 @@ LOOP:
 		msg, readErr := reader.ReadBytes('\n')
 		if readErr != nil {
 			if readErr == io.EOF {
-				break
+				break LOOP
 			}
 			fmt.Fprintf(os.Stderr, "Failed to read message type: %s\n", readErr)
 			os.Exit(exitcodes.ErrClient)
 		}
-		decMsg := datainfo.DecodeJSON(msg)
+		decMsg, decodeErr := datainfo.DecodeJSON(msg)
+		if decodeErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to decode message: %v\n", decodeErr)
+			continue
+		}
 
 		switch decMsg.Type {
 		case datainfo.File_Info_Data:
@@ -110,7 +114,10 @@ func (c *Client) handleConfirm() bool {
 
 func (c *Client) sendConfirm(w *bufio.Writer) error {
 	confirmInfo := datainfo.NewInfo("Confirm_Accept", 0, datainfo.Confirm_Accept)
-	encodedInfo := datainfo.EncodeJSON(confirmInfo)
+	encodedInfo, encodeErr := datainfo.EncodeJSON(confirmInfo)
+	if encodeErr != nil {
+		return encodeErr
+	}
 
 	if _, writeErr := w.Write(encodedInfo); writeErr != nil {
 		return fmt.Errorf("failed to write file info: %s", writeErr)
