@@ -1,35 +1,37 @@
 package datainfo
 
 import (
-	"encoding/json"
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"os"
 )
 
 type DataInfo struct {
-	Name string `json:"name"`
-	Size int64  `json:"size"`
-	Type int8   `json:"type"`
+	Name string
+	Size int64
+	Type int8
 }
 
-func NewInfo(name string, size int64, datatype int8) *DataInfo {
+func NewDataInfo(name string, size int64, datatype int8) *DataInfo {
 	return &DataInfo{name, size, datatype}
 }
 
-func EncodeJSON(info *DataInfo) ([]byte, error) {
-	jsonData, encodeErr := json.Marshal(info)
-	if encodeErr != nil {
-		fmt.Fprintf(os.Stderr, "Error encoding JSON: %s", encodeErr)
-		return nil, encodeErr
+func (data DataInfo) Encode() ([]byte, error) {
+	infobytes := new(bytes.Buffer)
+	Encoderr := gob.NewEncoder(infobytes).Encode(data)
+	if Encoderr != nil {
+		fmt.Fprintf(os.Stderr, "Error encode: %s", Encoderr)
+		return nil, Encoderr
 	}
-	return jsonData, nil
+	return infobytes.Bytes(), nil
 }
 
-func DecodeJSON(info []byte) (*DataInfo, error) {
-	var fileinfo DataInfo
-	if unmarshalErr := json.Unmarshal(info, &fileinfo); unmarshalErr != nil {
-		fmt.Fprintf(os.Stderr, "Error unmarshal JSON: %s", unmarshalErr)
-		return nil, unmarshalErr
+func (data *DataInfo) Decode(info []byte) error {
+	Decoderr := gob.NewDecoder(bytes.NewReader(info)).Decode(data)
+	if Decoderr != nil {
+		fmt.Fprintf(os.Stderr, "Error decode: %s", Decoderr)
+		return Decoderr
 	}
-	return &fileinfo, nil
+	return nil
 }

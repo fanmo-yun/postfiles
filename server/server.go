@@ -84,8 +84,8 @@ func (s Server) serverHandler(conn net.Conn, fileList []string) {
 func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 	for _, fileName := range fileList {
 		name, size := utils.FileStat(fileName)
-		info := datainfo.NewInfo(name, size, datainfo.File_Count)
-		encodedInfo, encodeErr := datainfo.EncodeJSON(info)
+		info := datainfo.NewDataInfo(name, size, datainfo.File_Count)
+		encodedInfo, encodeErr := info.Encode()
 		if encodeErr != nil {
 			fmt.Fprintf(os.Stderr, "Failed to encode info: %v\n", encodeErr)
 			continue
@@ -102,8 +102,8 @@ func (s Server) serverWriteAllInfo(w *bufio.Writer, fileList []string) error {
 		}
 	}
 
-	endInfo := datainfo.NewInfo("End_Of_Transmission", 0, datainfo.End_Of_Transmission)
-	encodedEndInfo, encodeErr := datainfo.EncodeJSON(endInfo)
+	endInfo := datainfo.NewDataInfo("End_Of_Transmission", 0, datainfo.End_Of_Transmission)
+	encodedEndInfo, encodeErr := endInfo.Encode()
 	if encodeErr != nil {
 		return encodeErr
 	}
@@ -124,7 +124,8 @@ func (s Server) recvClientConfirm(r *bufio.Reader) (bool, error) {
 	if readErr != nil {
 		return false, fmt.Errorf("failed to read confirm info: %s", readErr)
 	}
-	info, decodeErr := datainfo.DecodeJSON(confirmData)
+	info := new(datainfo.DataInfo)
+	decodeErr := info.Decode(confirmData)
 	if decodeErr != nil {
 		return false, decodeErr
 	}
@@ -145,8 +146,8 @@ func (s Server) sendFilesToClient(w *bufio.Writer, fileList []string) {
 
 func (s Server) serverWriteHandler(w *bufio.Writer, file string) error {
 	filename, filesize := utils.FileStat(file)
-	info := datainfo.NewInfo(filename, filesize, datainfo.File_Info_Data)
-	encodedInfo, encodeErr := datainfo.EncodeJSON(info)
+	info := datainfo.NewDataInfo(filename, filesize, datainfo.File_Info_Data)
+	encodedInfo, encodeErr := info.Encode()
 	if encodeErr != nil {
 		return encodeErr
 	}

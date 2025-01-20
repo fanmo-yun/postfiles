@@ -49,7 +49,8 @@ LOOP:
 			fmt.Fprintf(os.Stderr, "Failed to read message type: %s\n", readErr)
 			os.Exit(exitcodes.ErrClient)
 		}
-		decMsg, decodeErr := datainfo.DecodeJSON(msg)
+		decMsg := new(datainfo.DataInfo)
+		decodeErr := decMsg.Decode(msg)
 		if decodeErr != nil {
 			fmt.Fprintf(os.Stderr, "Failed to decode message: %v\n", decodeErr)
 			continue
@@ -113,8 +114,8 @@ func (c *Client) handleConfirm() bool {
 }
 
 func (c *Client) sendConfirm(w *bufio.Writer) error {
-	confirmInfo := datainfo.NewInfo("Confirm_Accept", 0, datainfo.Confirm_Accept)
-	encodedInfo, encodeErr := datainfo.EncodeJSON(confirmInfo)
+	confirmInfo := datainfo.NewDataInfo("Confirm_Accept", 0, datainfo.Confirm_Accept)
+	encodedInfo, encodeErr := confirmInfo.Encode()
 	if encodeErr != nil {
 		return encodeErr
 	}
