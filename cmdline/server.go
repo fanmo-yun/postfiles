@@ -1,4 +1,4 @@
-package flags
+package cmdline
 
 import (
 	"fmt"
@@ -25,15 +25,8 @@ var serverCmd = &cobra.Command{
 		}
 
 		ip, port := utils.ValidateServerIPAndPort(serverIP, serverPort)
-		fmt.Fprintf(cmd.OutOrStderr(), "Starting server at %s:%d\n", ip, port)
+		fmt.Fprintf(cmd.OutOrStdout(), "Starting server at %s:%d\n", ip, port)
 		srv := server.NewServer(ip, port)
 		srv.ServerRun(serverFiles)
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(serverCmd)
-	serverCmd.Flags().StringVarP(&serverIP, "ip", "i", "", "IP Address (default \"Ip currently in use\")")
-	serverCmd.Flags().IntVarP(&serverPort, "port", "p", 8877, "Port Number")
-	serverCmd.Flags().StringSliceVarP(&serverFiles, "files", "f", []string{}, "Files to serve")
 }

@@ -1,4 +1,4 @@
-package flags
+package cmdline
 
 import (
 	"fmt"
@@ -23,14 +23,7 @@ var clientCmd = &cobra.Command{
 			clientSavePath = utils.GetDownloadPath()
 		}
 		fmt.Fprintf(cmd.OutOrStderr(), "Starting client at %s:%d, saving to %s\n", ip, port, clientSavePath)
-		clt := client.NewClient(ip, port)
-		clt.ClientRun(clientSavePath)
+		clt := client.NewClient(ip, port, clientSavePath)
+		clt.ClientRun()
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(clientCmd)
-	clientCmd.Flags().StringVarP(&clientIP, "ip", "i", "", "IP Address (default \"Ip currently in use\")")
-	clientCmd.Flags().IntVarP(&clientPort, "port", "p", 8877, "Port Number")
-	clientCmd.Flags().StringVarP(&clientSavePath, "save", "s", "System Download Path", "Save Path")
 }

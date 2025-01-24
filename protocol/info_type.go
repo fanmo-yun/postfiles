@@ -1,4 +1,4 @@
-package datainfo
+package protocol
 
 const (
 	File_Info_Data = iota

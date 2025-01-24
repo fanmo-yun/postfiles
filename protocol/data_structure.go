@@ -1,4 +1,4 @@
-package datainfo
+package protocol
 
 import (
 	"bytes"
