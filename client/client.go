@@ -73,7 +73,7 @@ LOOP:
 			c.ProcessFileCount(decMsg)
 
 		default:
-			fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %.2f MB\n\n", c.Count, utils.ToMB(c.Size))
+			fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %s\n\n", c.Count, utils.ToReadableSize(c.Size))
 			if !c.PromptConfirm() {
 				break LOOP
 			}
@@ -106,7 +106,7 @@ func (c *Client) ReceiveFile(reader *bufio.Reader, info *protocol.DataInfo) {
 func (c *Client) ProcessFileCount(info *protocol.DataInfo) {
 	c.Count += 1
 	c.Size += info.Size
-	fmt.Fprintf(os.Stdout, "[%d] - %s - %.2f MB\n", c.Count, info.Name, utils.ToMB(info.Size))
+	fmt.Fprintf(os.Stdout, "[%d] - %s - %s\n", c.Count, info.Name, utils.ToReadableSize(info.Size))
 }
 
 func (c *Client) PromptConfirm() bool {

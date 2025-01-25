@@ -19,19 +19,19 @@ func NewDataInfo(name string, size int64, datatype int8) *DataInfo {
 
 func (data DataInfo) Encode() ([]byte, error) {
 	bytes := new(bytes.Buffer)
-	encodErr := gob.NewEncoder(bytes).Encode(data)
-	if encodErr != nil {
-		fmt.Fprintf(os.Stderr, "Error encode: %s", encodErr)
-		return nil, encodErr
+	encodeErr := gob.NewEncoder(bytes).Encode(data)
+	if encodeErr != nil {
+		fmt.Fprintf(os.Stderr, "Error encode: %s", encodeErr)
+		return nil, encodeErr
 	}
 	return bytes.Bytes(), nil
 }
 
 func (data *DataInfo) Decode(info []byte) error {
-	decodErr := gob.NewDecoder(bytes.NewReader(info)).Decode(data)
-	if decodErr != nil {
-		fmt.Fprintf(os.Stderr, "Error decode: %s", decodErr)
-		return decodErr
+	decodeErr := gob.NewDecoder(bytes.NewReader(info)).Decode(data)
+	if decodeErr != nil {
+		fmt.Fprintf(os.Stderr, "Error decode: %s", decodeErr)
+		return decodeErr
 	}
 	return nil
 }

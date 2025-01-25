@@ -1,21 +1,27 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
-	"unicode/utf8"
 
 	"golang.org/x/term"
 )
 
-func IsvalidIP(ip string) bool {
-	return net.ParseIP(ip) != nil
+func ValidIP(ip string) error {
+	if parsErr := net.ParseIP(ip); parsErr != nil {
+		return errors.New("ip incorrect")
+	}
+	return nil
 }
 
-func IsvalidPort(port int) bool {
-	return port >= 1024 && port <= 65535
+func ValidPort(port int) error {
+	if !(port >= 1024 && port <= 65535) {
+		return errors.New("port incorrect")
+	}
+	return nil
 }
 
 func FileStat(file string) (string, int64) {
@@ -35,38 +41,20 @@ func FileStat(file string) (string, int64) {
 	return filepath.Base(info.Name()), info.Size()
 }
 
-func ValidateServerIPAndPort(ip string, port int) (string, int) {
+func ValidateIPAndPort(ip string, port int) (string, int) {
 	temp_ip := ip
 	temp_port := port
 
 	if len(temp_ip) == 0 {
 		temp_ip = GenIP()
-	} else if !IsvalidIP(temp_ip) {
-		fmt.Fprintf(os.Stderr, "Invalid IP: %s\n", temp_ip)
+	}
+	if ipErr := ValidIP(temp_ip); ipErr != nil {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", ipErr, temp_ip)
 		os.Exit(ErrIPAndPort)
 	}
 
-	if !IsvalidPort(temp_port) {
-		fmt.Fprintf(os.Stderr, "Invalid Port: %d\n", temp_port)
-		os.Exit(ErrIPAndPort)
-	}
-
-	return temp_ip, temp_port
-}
-
-func ValidateClientIPAndPort(ip string, port int) (string, int) {
-	temp_ip := ip
-	temp_port := port
-
-	if len(temp_ip) == 0 {
-		temp_ip = GenIP()
-	} else if !IsvalidIP(temp_ip) {
-		fmt.Fprintf(os.Stderr, "Invalid IP: %s\n", temp_ip)
-		os.Exit(ErrIPAndPort)
-	}
-
-	if !IsvalidPort(temp_port) {
-		fmt.Fprintf(os.Stderr, "Invalid Port: %d\n", temp_port)
+	if portErr := ValidPort(temp_port); portErr != nil {
+		fmt.Fprintf(os.Stderr, "%s: %d\n", portErr, temp_port)
 		os.Exit(ErrIPAndPort)
 	}
 
@@ -74,16 +62,10 @@ func ValidateClientIPAndPort(ip string, port int) (string, int) {
 }
 
 func IsTerminal() {
-	if !(term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stderr.Fd())) && term.IsTerminal(int(os.Stdin.Fd()))) {
+	if !(term.IsTerminal(int(os.Stdout.Fd())) &&
+		term.IsTerminal(int(os.Stderr.Fd())) &&
+		term.IsTerminal(int(os.Stdin.Fd()))) {
 		fmt.Fprintf(os.Stderr, "Not in a terminal\n")
 		os.Exit(ErrNotTerminal)
 	}
-}
-
-func TruncateString(s string, maxLength int) string {
-	if utf8.RuneCountInString(s) < maxLength {
-		return s
-	}
-	runes := []rune(s)
-	return string(runes[:maxLength-3]) + "..."
 }
