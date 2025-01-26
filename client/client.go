@@ -15,8 +15,9 @@ import (
 type ClientInterface interface {
 	ClientRun()
 	HandleConnection(conn net.Conn)
-	ReceiveFile(reader *bufio.Reader, info *protocol.DataInfo)
+	ReceiveFileAndSave(reader *bufio.Reader, info *protocol.DataInfo)
 	ProcessFileCount(info *protocol.DataInfo)
+	CountIsEmpty() bool
 	PromptConfirm() bool
 	SendConfirmation(writer *bufio.Writer) error
 }
@@ -67,14 +68,14 @@ LOOP:
 
 		switch decMsg.Type {
 		case protocol.File_Info_Data:
-			c.ReceiveFile(reader, decMsg)
+			c.ReceiveFileAndSave(reader, decMsg)
 
 		case protocol.File_Count:
 			c.ProcessFileCount(decMsg)
 
 		default:
 			fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %s\n\n", c.Count, utils.ToReadableSize(c.Size))
-			if c.Count == 0 || !c.PromptConfirm() {
+			if c.CountIsEmpty() || !c.PromptConfirm() {
 				break LOOP
 			}
 			if err := c.SendConfirmation(writer); err != nil {
@@ -84,7 +85,7 @@ LOOP:
 	}
 }
 
-func (c *Client) ReceiveFile(reader *bufio.Reader, info *protocol.DataInfo) {
+func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, info *protocol.DataInfo) {
 	filePath := filepath.Join(c.SavePath, info.Name)
 	fp, createErr := os.Create(filePath)
 	if createErr != nil {
@@ -101,6 +102,10 @@ func (c *Client) ReceiveFile(reader *bufio.Reader, info *protocol.DataInfo) {
 			os.Exit(utils.ErrClient)
 		}
 	}
+}
+
+func (c *Client) CountIsEmpty() bool {
+	return c.Count == 0
 }
 
 func (c *Client) ProcessFileCount(info *protocol.DataInfo) {

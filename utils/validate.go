@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 
 	"golang.org/x/term"
 )
@@ -22,23 +21,6 @@ func ValidPort(port int) error {
 		return errors.New("port incorrect")
 	}
 	return nil
-}
-
-func FileStat(file string) (string, int64) {
-	info, statErr := os.Stat(file)
-
-	if os.IsNotExist(statErr) {
-		fmt.Fprintf(os.Stderr, "file: %s does not exist\n", file)
-		os.Exit(ErrFileStat)
-	} else if info.IsDir() {
-		fmt.Fprintf(os.Stderr, "file: %s is a directory\n", file)
-		os.Exit(ErrFileStat)
-	} else if statErr != nil {
-		fmt.Fprintf(os.Stderr, "error stating file: %s\n", statErr)
-		os.Exit(ErrFileStat)
-	}
-
-	return filepath.Base(info.Name()), info.Size()
 }
 
 func ValidateIPAndPort(ip string, port int) (string, int) {

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"postfiles/protocol"
 	"postfiles/utils"
 	"sync"
@@ -103,7 +104,7 @@ func (s *Server) HandleConnection(conn net.Conn, files []string) {
 
 func (s *Server) WriteFileInfo(writer *bufio.Writer, files []string) error {
 	for _, fileName := range files {
-		name, size := utils.FileStat(fileName)
+		name, size := s.GetFileStat(fileName)
 		info := protocol.NewDataInfo(name, size, protocol.File_Count)
 		encodedInfo, encodeErr := info.Encode()
 		if encodeErr != nil {
@@ -165,7 +166,7 @@ func (s *Server) SendFiles(writer *bufio.Writer, files []string) {
 }
 
 func (s *Server) WriteFile(writer *bufio.Writer, file string) error {
-	filename, filesize := utils.FileStat(file)
+	filename, filesize := s.GetFileStat(file)
 	info := protocol.NewDataInfo(filename, filesize, protocol.File_Info_Data)
 	encodedInfo, encodeErr := info.Encode()
 	if encodeErr != nil {
@@ -195,4 +196,21 @@ func (s *Server) WriteFile(writer *bufio.Writer, file string) error {
 		return fmt.Errorf("failed to flush writer after file data: %s", flushErr)
 	}
 	return nil
+}
+
+func (s *Server) GetFileStat(file string) (string, int64) {
+	info, statErr := os.Stat(file)
+
+	if os.IsNotExist(statErr) {
+		fmt.Fprintf(os.Stderr, "file: %s does not exist\n", file)
+		os.Exit(utils.ErrFileStat)
+	} else if info.IsDir() {
+		fmt.Fprintf(os.Stderr, "file: %s is a directory\n", file)
+		os.Exit(utils.ErrFileStat)
+	} else if statErr != nil {
+		fmt.Fprintf(os.Stderr, "error stating file: %s\n", statErr)
+		os.Exit(utils.ErrFileStat)
+	}
+
+	return filepath.Base(info.Name()), info.Size()
 }
