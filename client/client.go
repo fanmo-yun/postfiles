@@ -61,7 +61,7 @@ LOOP:
 		decMsg := new(protocol.DataInfo)
 		decodeErr := decMsg.Decode(msg)
 		if decodeErr != nil {
-			fmt.Fprintf(os.Stderr, "Failed to decode message: %v\n", decodeErr)
+			fmt.Fprintf(os.Stderr, "Failed to decode message: %s\n", decodeErr)
 			continue
 		}
 
@@ -74,7 +74,7 @@ LOOP:
 
 		default:
 			fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %s\n\n", c.Count, utils.ToReadableSize(c.Size))
-			if !c.PromptConfirm() {
+			if c.Count == 0 || !c.PromptConfirm() {
 				break LOOP
 			}
 			if err := c.SendConfirmation(writer); err != nil {
@@ -93,9 +93,9 @@ func (c *Client) ReceiveFile(reader *bufio.Reader, info *protocol.DataInfo) {
 	}
 	defer fp.Close()
 
-	bar := utils.CreateBar(info.Size, info.Name)
+	mw := io.MultiWriter(fp, utils.CreateProcessBar(info.Size, info.Name))
 
-	if _, copyErr := io.CopyN(io.MultiWriter(fp, bar), reader, info.Size); copyErr != nil {
+	if _, copyErr := io.CopyN(mw, reader, info.Size); copyErr != nil {
 		if copyErr != io.EOF {
 			fmt.Fprintf(os.Stderr, "Failed to copy file data for %s: %s\n", filePath, copyErr)
 			os.Exit(utils.ErrClient)

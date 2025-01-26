@@ -11,7 +11,7 @@ import (
 )
 
 func ValidIP(ip string) error {
-	if parsErr := net.ParseIP(ip); parsErr != nil {
+	if parsErr := net.ParseIP(ip); parsErr == nil {
 		return errors.New("ip incorrect")
 	}
 	return nil
@@ -43,7 +43,6 @@ func FileStat(file string) (string, int64) {
 
 func ValidateIPAndPort(ip string, port int) (string, int) {
 	temp_ip := ip
-	temp_port := port
 
 	if len(temp_ip) == 0 {
 		temp_ip = GenIP()
@@ -53,12 +52,12 @@ func ValidateIPAndPort(ip string, port int) (string, int) {
 		os.Exit(ErrIPAndPort)
 	}
 
-	if portErr := ValidPort(temp_port); portErr != nil {
-		fmt.Fprintf(os.Stderr, "%s: %d\n", portErr, temp_port)
+	if portErr := ValidPort(port); portErr != nil {
+		fmt.Fprintf(os.Stderr, "%s: %d\n", portErr, port)
 		os.Exit(ErrIPAndPort)
 	}
 
-	return temp_ip, temp_port
+	return temp_ip, port
 }
 
 func IsTerminal() {

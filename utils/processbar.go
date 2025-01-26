@@ -1,27 +1,36 @@
 package utils
 
 import (
-	"fmt"
+	"os"
 	"unicode/utf8"
 
 	"github.com/schollz/progressbar/v3"
+	"golang.org/x/term"
 )
 
-func CreateBar(filesize int64, filename string) *progressbar.ProgressBar {
-	w := GetBarWidth()
-	bar := progressbar.NewOptions64(
+func CreateProcessBar(filesize int64, filename string) *progressbar.ProgressBar {
+	// w := GetBarWidth()
+	processbar := progressbar.NewOptions64(
 		filesize,
-		progressbar.OptionSetDescription(TruncateString(filename, w-65)),
-		progressbar.OptionSetWidth(w-35),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionSetPredictTime(true),
-		progressbar.OptionShowCount(),
-		progressbar.OptionOnCompletion(func() {
-			fmt.Println()
-		}),
+		progressbar.OptionSetDescription(filename),
+		progressbar.OptionShowElapsedTimeOnFinish(),
 		progressbar.OptionSetRenderBlankState(true),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionFullWidth(),
 	)
-	return bar
+	return processbar
+}
+
+func GetBarWidth() int {
+	width, _, _ := term.GetSize(int(os.Stdout.Fd()))
+	barLength := width * 70 / 100
+	if barLength < 20 {
+		barLength = 20
+	} else if barLength > width-10 {
+		barLength = width - 10
+	}
+	return barLength
 }
 
 func TruncateString(s string, maxLength int) string {
