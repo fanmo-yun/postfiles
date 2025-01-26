@@ -1,37 +1,24 @@
 package protocol
 
-import (
-	"bytes"
-	"encoding/gob"
-	"fmt"
-	"os"
-)
-
 type DataInfo struct {
-	Name string
-	Size int64
-	Type int8
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+	Type int8   `json:"type"`
 }
 
 func NewDataInfo(name string, size int64, datatype int8) *DataInfo {
 	return &DataInfo{name, size, datatype}
 }
 
-func (data DataInfo) Encode() ([]byte, error) {
-	bytes := new(bytes.Buffer)
-	encodeErr := gob.NewEncoder(bytes).Encode(data)
-	if encodeErr != nil {
-		fmt.Fprintf(os.Stderr, "Error encode: %s", encodeErr)
-		return nil, encodeErr
+func (v DataInfo) Encode() ([]byte, error) {
+	jsonBytes, marshalErr := v.MarshalJSON()
+	if marshalErr != nil {
+		return nil, marshalErr
 	}
-	return bytes.Bytes(), nil
+	return jsonBytes, nil
 }
 
-func (data *DataInfo) Decode(info []byte) error {
-	decodeErr := gob.NewDecoder(bytes.NewReader(info)).Decode(data)
-	if decodeErr != nil {
-		fmt.Fprintf(os.Stderr, "Error decode: %s", decodeErr)
-		return decodeErr
-	}
+func (v *DataInfo) Decode(jsonBytes []byte) error {
+	v.UnmarshalJSON(jsonBytes)
 	return nil
 }
