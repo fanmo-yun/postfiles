@@ -1,8 +1,13 @@
 module postfiles
 
-go 1.22.3
+go 1.22.0
 
 require github.com/schollz/progressbar/v3 v3.18.0
+
+require (
+	github.com/josharian/intern v1.0.0 // indirect
+	github.com/mailru/easyjson v0.9.0
+)
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
