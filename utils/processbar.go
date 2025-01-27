@@ -3,17 +3,21 @@ package utils
 import (
 	"fmt"
 	"os"
-	"unicode/utf8"
+	"strings"
 
 	"github.com/schollz/progressbar/v3"
 	"golang.org/x/term"
+	"golang.org/x/text/width"
 )
 
 func CreateProcessBar(filesize int64, filename string) *progressbar.ProgressBar {
-	// w := GetBarWidth()
+	barWidth := GetBarWidth()
+	textWidth := barWidth * 30 / 100
+	afterText := PadOrTruncateString(filename, textWidth)
+
 	processbar := progressbar.NewOptions64(
 		filesize,
-		progressbar.OptionSetDescription(filename),
+		progressbar.OptionSetDescription(afterText),
 		progressbar.OptionShowElapsedTimeOnFinish(),
 		progressbar.OptionSetRenderBlankState(true),
 		progressbar.OptionOnCompletion(func() {
@@ -27,20 +31,57 @@ func CreateProcessBar(filesize int64, filename string) *progressbar.ProgressBar 
 }
 
 func GetBarWidth() int {
-	width, _, _ := term.GetSize(int(os.Stdout.Fd()))
-	barLength := width * 70 / 100
-	if barLength < 20 {
-		barLength = 20
-	} else if barLength > width-10 {
-		barLength = width - 10
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		width = 80
 	}
-	return barLength
+	return width
 }
 
-func TruncateString(s string, maxLength int) string {
-	if utf8.RuneCountInString(s) < maxLength {
-		return s
+func GetTextWidth(s string) int {
+	w := 0
+	for _, r := range s {
+		switch width.LookupRune(r).Kind() {
+		case width.EastAsianFullwidth, width.EastAsianWide:
+			w += 2
+		case width.EastAsianHalfwidth, width.EastAsianNarrow,
+			width.Neutral, width.EastAsianAmbiguous:
+			w += 1
+		}
 	}
-	runes := []rune(s)
-	return string(runes[:maxLength-3]) + "..."
+	return w
+}
+
+func PadOrTruncateString(s string, targetLength int) string {
+	currentWidth := GetTextWidth(s)
+	builder := new(strings.Builder)
+
+	if currentWidth > targetLength {
+		w := 0
+		for _, r := range s {
+			runeWidth := 1
+			switch width.LookupRune(r).Kind() {
+			case width.EastAsianFullwidth, width.EastAsianWide:
+				runeWidth = 2
+			}
+
+			if w+runeWidth > targetLength-3 {
+				break
+			}
+			builder.WriteRune(r)
+			w += runeWidth
+		}
+		builder.WriteString("...")
+		return builder.String()
+	}
+
+	if currentWidth < targetLength {
+		padding := targetLength - currentWidth
+		builder.WriteString(s)
+		builder.WriteString(strings.Repeat(" ", padding))
+		return builder.String()
+	}
+
+	builder.WriteString(s)
+	return builder.String()
 }
