@@ -2,7 +2,10 @@ module postfiles
 
 go 1.22.0
 
-require github.com/schollz/progressbar/v3 v3.18.0
+require (
+	github.com/schollz/progressbar/v3 v3.18.0
+	golang.org/x/text v0.21.0
+)
 
 require (
 	github.com/josharian/intern v1.0.0 // indirect
