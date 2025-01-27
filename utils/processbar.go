@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"os"
 	"unicode/utf8"
 
@@ -15,6 +16,9 @@ func CreateProcessBar(filesize int64, filename string) *progressbar.ProgressBar 
 		progressbar.OptionSetDescription(filename),
 		progressbar.OptionShowElapsedTimeOnFinish(),
 		progressbar.OptionSetRenderBlankState(true),
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprintf(os.Stdout, "\n")
+		}),
 		progressbar.OptionSetPredictTime(true),
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionFullWidth(),
