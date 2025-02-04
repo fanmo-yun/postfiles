@@ -16,6 +16,8 @@ type ClientInterface interface {
 	ClientRun()
 	HandleConnection(conn net.Conn)
 	ReceiveFileAndSave(reader *bufio.Reader, info *protocol.DataInfo)
+	ValidateSavePath()
+	ValidateSaveFileStat(filepath string)
 	ProcessFileCount(info *protocol.DataInfo)
 	CountIsEmpty() bool
 	PromptConfirm() bool
@@ -31,7 +33,8 @@ type Client struct {
 }
 
 func NewClient(IP string, Port int, SavePath string) *Client {
-	return &Client{IP, Port, SavePath, 0, 0}
+	client := &Client{IP, Port, SavePath, 0, 0}
+	return client
 }
 
 func (c *Client) ClientRun() {
@@ -68,12 +71,16 @@ LOOP:
 
 		switch decMsg.Type {
 		case protocol.File_Info_Data:
+			if c.ValidateSaveFileStat(filepath.Join(c.SavePath, decMsg.Name)) != nil {
+				fmt.Fprintf(os.Stderr, "Failed to validate file: %s\n", decMsg.Name)
+				continue
+			}
 			c.ReceiveFileAndSave(reader, decMsg)
 
 		case protocol.File_Count:
 			c.ProcessFileCount(decMsg)
 
-		default:
+		case protocol.Confirm_Accept:
 			fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %s\n\n", c.Count, utils.ToReadableSize(c.Size))
 			if c.CountIsEmpty() || !c.PromptConfirm() {
 				break LOOP
@@ -81,16 +88,18 @@ LOOP:
 			if err := c.SendConfirmation(writer); err != nil {
 				break LOOP
 			}
+
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown message type\n")
+			break LOOP
 		}
 	}
 }
 
 func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, info *protocol.DataInfo) {
-	filePath := filepath.Join(c.SavePath, info.Name)
-	fp, createErr := os.Create(filePath)
+	fp, createErr := os.Create(filepath.Join(c.SavePath, info.Name))
 	if createErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create file %s: %s\n", filePath, createErr)
-		os.Exit(utils.ErrClient)
+		return
 	}
 	defer fp.Close()
 
@@ -98,10 +107,34 @@ func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, info *protocol.DataInf
 
 	if _, copyErr := io.CopyN(mw, reader, info.Size); copyErr != nil {
 		if copyErr != io.EOF {
-			fmt.Fprintf(os.Stderr, "Failed to copy file data for %s: %s\n", filePath, copyErr)
+			fmt.Fprintf(os.Stderr, "Failed to copy file data: %s\n", copyErr)
 			os.Exit(utils.ErrClient)
 		}
 	}
+}
+
+func (c *Client) ValidateSavePath() {
+	savepathStat, statErr := os.Stat(c.SavePath)
+	if os.IsNotExist(statErr) || !savepathStat.IsDir() {
+		fmt.Fprintf(os.Stderr, "Save path %s does not exist or is not a directory\n", c.SavePath)
+		os.Exit(utils.ErrDirStat)
+	}
+}
+
+func (c *Client) ValidateSaveFileStat(filepath string) error {
+	_, statErr := os.Stat(filepath)
+	if statErr == nil {
+		return fmt.Errorf("file already exists: %s", filepath)
+	}
+	if os.IsNotExist(statErr) {
+		file, createErr := os.Create(filepath)
+		if createErr != nil {
+			return fmt.Errorf("failed to create file: %s", createErr)
+		}
+		defer file.Close()
+		return nil
+	}
+	return fmt.Errorf("failed to validate file: %s", statErr)
 }
 
 func (c *Client) CountIsEmpty() bool {

@@ -24,6 +24,7 @@ var clientCmd = &cobra.Command{
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Starting client at %s:%d, saving to %s\n", ip, port, clientSavePath)
 		client := client.NewClient(ip, port, clientSavePath)
+		client.ValidateSavePath()
 		client.ClientRun()
 	},
 }
