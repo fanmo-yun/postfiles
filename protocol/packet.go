@@ -5,11 +5,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"io"
 )
 
 type PacketInterface interface {
 	Encode() ([]byte, uint32, error)
 	Decode([]byte) error
+	EnableAndWrite(*bufio.Writer) error
+	ReadAndDecode(*bufio.Reader) error
 }
 
 type Packet struct {
@@ -53,4 +56,17 @@ func (dp *Packet) EnableAndWrite(writer *bufio.Writer) error {
 		return writeErr
 	}
 	return nil
+}
+
+func (dp *Packet) ReadAndDecode(reader *bufio.Reader) error {
+	var decLength uint32
+	if readErr := binary.Read(reader, binary.LittleEndian, &decLength); readErr != nil {
+		return readErr
+	}
+	decData := make([]byte, decLength)
+	_, readErr := io.ReadFull(reader, decData)
+	if readErr != nil {
+		return readErr
+	}
+	return dp.Decode(decData)
 }

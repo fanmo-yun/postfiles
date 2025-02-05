@@ -3,7 +3,6 @@ package cmdline
 import (
 	"fmt"
 	"os"
-	"postfiles/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -32,6 +31,6 @@ func Execute() {
 
 	if executeErr := rootCmd.Execute(); executeErr != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", executeErr)
-		os.Exit(utils.ErrFlag)
+		return
 	}
 }

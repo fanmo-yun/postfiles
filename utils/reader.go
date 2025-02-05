@@ -2,17 +2,15 @@ package utils
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"strings"
 )
 
-func Readin() string {
+func Readin() (string, error) {
 	reader := bufio.NewReaderSize(os.Stdin, 16)
 	confirm, readErr := reader.ReadString('\n')
 	if readErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to read input: %s\n", readErr)
-		os.Exit(ErrReadInput)
+		return "", readErr
 	}
-	return strings.TrimRight(confirm, "\r\n")
+	return strings.TrimRight(confirm, "\r\n"), nil
 }

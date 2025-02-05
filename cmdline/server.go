@@ -24,7 +24,10 @@ var serverCmd = &cobra.Command{
 			return
 		}
 
-		ip, port := utils.ValidateIPAndPort(serverIP, serverPort)
+		ip, port, validateErr := utils.ValidateIPAndPort(serverIP, serverPort)
+		if validateErr != nil {
+			fmt.Fprintf(cmd.OutOrStderr(), "Error validating IP and port: %s\n", validateErr)
+		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Starting server at %s:%d\n", ip, port)
 		server := server.NewServer(ip, port, serverFiles)
 		if err := server.Start(); err != nil {

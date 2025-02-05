@@ -8,29 +8,25 @@ import (
 	"strings"
 )
 
-func GenIP() string {
+func GenIP() (string, error) {
 	conn, connErr := net.Dial("udp", "114.114.114.114:80")
 	if connErr != nil {
-		fmt.Fprintf(os.Stderr, "Error connecting to UDP server: %s\n", connErr)
-		os.Exit(ErrIPAndPort)
+		return "", connErr
 	}
 	defer conn.Close()
-	return strings.Split(conn.LocalAddr().String(), ":")[0]
+	return strings.Split(conn.LocalAddr().String(), ":")[0], nil
 }
 
-func GetDownloadPath() string {
+func GetDownloadPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting home directory: %s\n", err)
-		os.Exit(ErrDirStat)
+		return "", err
 	}
 	downloadDir := filepath.Join(homeDir, "Downloads")
-	if _, dirErr := os.Stat(downloadDir); os.IsNotExist(dirErr) {
-		fmt.Fprintf(os.Stderr, "Download directory does not exist: %s\n", downloadDir)
-		os.Exit(ErrDirStat)
+	if dirStat, dirErr := os.Stat(downloadDir); os.IsNotExist(dirErr) || !dirStat.IsDir() {
+		return "", fmt.Errorf("[%s] path does not exist or is not a folder", downloadDir)
 	} else if dirErr != nil {
-		fmt.Fprintf(os.Stderr, "Error stating download directory: %s\n", dirErr)
-		os.Exit(ErrDirStat)
+		return "", dirErr
 	}
-	return downloadDir
+	return downloadDir, nil
 }

@@ -2,7 +2,6 @@ package utils
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"os"
 
@@ -23,30 +22,30 @@ func ValidPort(port int) error {
 	return nil
 }
 
-func ValidateIPAndPort(ip string, port int) (string, int) {
-	temp_ip := ip
-
-	if len(temp_ip) == 0 {
-		temp_ip = GenIP()
+func ValidateIPAndPort(ip string, port int) (string, int, error) {
+	if len(ip) == 0 {
+		temp_ip, genErr := GenIP()
+		if genErr != nil {
+			return "", 0, genErr
+		}
+		ip = temp_ip
 	}
-	if ipErr := ValidIP(temp_ip); ipErr != nil {
-		fmt.Fprintf(os.Stderr, "%s: %s\n", ipErr, temp_ip)
-		os.Exit(ErrIPAndPort)
+	if ipErr := ValidIP(ip); ipErr != nil {
+		return "", 0, ipErr
 	}
 
 	if portErr := ValidPort(port); portErr != nil {
-		fmt.Fprintf(os.Stderr, "%s: %d\n", portErr, port)
-		os.Exit(ErrIPAndPort)
+		return "", 0, portErr
 	}
 
-	return temp_ip, port
+	return ip, port, nil
 }
 
-func IsTerminal() {
+func IsTerminal() error {
 	if !(term.IsTerminal(int(os.Stdout.Fd())) &&
 		term.IsTerminal(int(os.Stderr.Fd())) &&
 		term.IsTerminal(int(os.Stdin.Fd()))) {
-		fmt.Fprintf(os.Stderr, "Not in a terminal\n")
-		os.Exit(ErrNotTerminal)
+		return errors.New("not a terminal")
 	}
+	return nil
 }
