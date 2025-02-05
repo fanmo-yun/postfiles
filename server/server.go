@@ -2,215 +2,237 @@ package server
 
 import (
 	"bufio"
+	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"postfiles/protocol"
-	"postfiles/utils"
 	"sync"
 	"syscall"
+	"time"
 )
 
 type ServerInterface interface {
-	ServerRun(files []string)
-	ServerStop()
-	AcceptConnection(listener net.Listener, files []string)
-	HandleConnection(conn net.Conn, files []string)
-	WriteFileInfo(writer *bufio.Writer, files []string) error
+	Start() error
+	HandleConnection(conn net.Conn)
+	HandleSignals()
+	Shutdown()
+	IsShutdown() bool
+	SendFilesQuantityAndInfomation(writer *bufio.Writer) error
 	ReceiveClientConfirmation(reader *bufio.Reader) (bool, error)
-	SendFiles(writer *bufio.Writer, files []string)
-	WriteFile(writer *bufio.Writer, file string) error
+	SendFilesData(writer *bufio.Writer) error
+	GetFileStat(path string) (string, int64, error)
 }
 
 type Server struct {
-	IP         string
-	Port       int
-	Wg         *sync.WaitGroup
-	ServerQuit chan os.Signal
+	ip            string
+	port          int
+	filelist      []string
+	listlength    int
+	listener      net.Listener
+	connectionMap *sync.Map
+	shutdown      chan struct{}
+	wg            *sync.WaitGroup
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
-func NewServer(IP string, Port int) *Server {
+func NewServer(ip string, port int, filelist []string) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		IP,
-		Port,
-		new(sync.WaitGroup),
-		make(chan os.Signal, 1),
+		ip:            ip,
+		port:          port,
+		filelist:      filelist,
+		listlength:    len(filelist),
+		connectionMap: new(sync.Map),
+		shutdown:      make(chan struct{}),
+		wg:            new(sync.WaitGroup),
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 }
 
-func (s *Server) ServerRun(files []string) {
-	listener, listenErr := net.Listen("tcp", fmt.Sprintf("%s:%d", s.IP, s.Port))
+func (s *Server) Start() error {
+	listener, listenErr := net.Listen("tcp", fmt.Sprintf("%s:%d", s.ip, s.port))
 	if listenErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to start listener: %s\n", listenErr)
-		os.Exit(utils.ErrServer)
+		return listenErr
 	}
+	s.listener = listener
 
-	signal.Notify(s.ServerQuit, os.Interrupt, syscall.SIGTERM)
+	go s.HandleSignals()
 
-	go s.ServerStop(listener)
-	s.AcceptConnection(listener, files)
-}
-
-func (s *Server) ServerStop(listener net.Listener) {
-	<-s.ServerQuit
-
-	fmt.Fprintf(os.Stdout, "Stopping server...\n")
-	s.Wg.Wait()
-	close(s.ServerQuit)
-	fmt.Fprintf(os.Stdout, "Server Stopped\n")
-	if closErr := listener.Close(); closErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to close listener: %v\n", closErr)
-		os.Exit(utils.ErrServerClose)
-	}
-}
-
-func (s *Server) AcceptConnection(listener net.Listener, files []string) {
 	for {
-		conn, connErr := listener.Accept()
-		if connErr != nil {
-			if opErr, ok := connErr.(*net.OpError); ok && opErr.Op == "accept" {
-				return
+		select {
+		case <-s.shutdown:
+			return nil
+		default:
+			conn, connErr := listener.Accept()
+			if connErr != nil {
+				if ne, ok := connErr.(net.Error); ok && ne.Timeout() {
+					continue
+				}
+				if s.IsShutdown() {
+					return nil
+				}
+				continue
 			}
-			fmt.Fprintf(os.Stdout, "Failed to accept connection: %s\n", connErr)
-			continue
+			s.wg.Add(1)
+			s.connectionMap.Store(conn.RemoteAddr(), conn)
+			go s.HandleConnection(conn)
 		}
-		fmt.Fprintf(os.Stdout, "Connection established from %s\n", conn.RemoteAddr().String())
-		s.Wg.Add(1)
-		go s.HandleConnection(conn, files)
 	}
 }
 
-func (s *Server) HandleConnection(conn net.Conn, files []string) {
+func (s *Server) HandleConnection(conn net.Conn) {
 	defer func() {
 		conn.Close()
-		s.Wg.Done()
+		s.connectionMap.Delete(conn.RemoteAddr())
+		s.wg.Done()
 	}()
-	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
 
-	if err := s.WriteFileInfo(writer, files); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to write Info: %s\n", err)
+	reader := bufio.NewReaderSize(conn, 16)
+	writer := bufio.NewWriterSize(conn, 4*1024)
+	conn.SetDeadline(time.Now().Add(15 * time.Second))
+
+	if err := s.SendFilesQuantityAndInfomation(writer); err != nil {
+		log.Printf("Failed to send file metadata: %s\n", err)
 		return
 	}
 	isConfirm, recvErr := s.ReceiveClientConfirmation(reader)
-	if recvErr != nil || !isConfirm {
+	if recvErr != nil {
+		log.Printf("Failed to receive client confirmation: %s\n", recvErr)
 		return
 	}
-	s.SendFiles(writer, files)
+	if isConfirm {
+		if err := s.SendFilesData(writer); err != nil {
+			log.Printf("Failed to send files data: %s\n", err)
+			return
+		}
+	}
 }
 
-func (s *Server) WriteFileInfo(writer *bufio.Writer, files []string) error {
-	for _, fileName := range files {
-		name, size := s.GetFileStat(fileName)
-		info := protocol.NewDataInfo(name, size, protocol.File_Count)
-		encodedInfo, encodeErr := info.Encode()
-		if encodeErr != nil {
-			fmt.Fprintf(os.Stderr, "Failed to encode info: %v\n", encodeErr)
-			continue
-		}
+func (s *Server) HandleSignals() {
+	singleChan := make(chan os.Signal, 1)
+	signal.Notify(singleChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-		if _, writeErr := writer.Write(encodedInfo); writeErr != nil {
-			return fmt.Errorf("failed to write file info for %s: %s", fileName, writeErr)
-		}
-		if writeErr := writer.WriteByte('\n'); writeErr != nil {
-			return fmt.Errorf("failed to write newline for %s: %s", fileName, writeErr)
-		}
-		if flushErr := writer.Flush(); flushErr != nil {
-			return fmt.Errorf("failed to flush writer for %s: %s", fileName, flushErr)
-		}
+	<-singleChan
+	s.Shutdown()
+}
+
+func (s *Server) Shutdown() {
+	close(s.shutdown)
+	s.cancel()
+	if s.listener != nil {
+		s.listener.Close()
 	}
 
-	endInfo := protocol.NewDataInfo("End_Of_Transmission", 0, protocol.End_Of_Transmission)
-	encodedEndInfo, encodeErr := endInfo.Encode()
-	if encodeErr != nil {
-		return encodeErr
+	s.connectionMap.Range(func(key, value interface{}) bool {
+		if conn, ok := value.(net.Conn); ok {
+			if closeErr := conn.Close(); closeErr != nil {
+				log.Printf("Failed to close connection: %s\n", closeErr)
+			}
+		}
+		return true
+	})
+
+	s.wg.Wait()
+}
+
+func (s *Server) IsShutdown() bool {
+	select {
+	case <-s.shutdown:
+		return true
+	default:
+		return false
 	}
-	if _, writeErr := writer.Write(encodedEndInfo); writeErr != nil {
-		return fmt.Errorf("failed to write end of transmission info: %s", writeErr)
+}
+
+func (s *Server) SendFilesQuantityAndInfomation(writer *bufio.Writer) error {
+	for i := 0; i < s.listlength; i++ {
+		filename, filesize, statErr := s.GetFileStat(s.filelist[i])
+		if statErr != nil {
+			return statErr
+		}
+		quantityPacket := protocol.NewPacket(protocol.FileQuantity, filename, filesize)
+		if quantitErr := quantityPacket.EnableAndWrite(writer); quantitErr != nil {
+			return quantitErr
+		}
 	}
-	if writeErr := writer.WriteByte('\n'); writeErr != nil {
-		return fmt.Errorf("failed to write end of transmission newline: %s", writeErr)
+	endPacket := protocol.NewPacket(protocol.EndOfTransmission, "", 0)
+	if endErr := endPacket.EnableAndWrite(writer); endErr != nil {
+		return endErr
 	}
 	if flushErr := writer.Flush(); flushErr != nil {
-		return fmt.Errorf("failed to flush end of transmission info: %s", flushErr)
+		return flushErr
 	}
 	return nil
 }
 
 func (s *Server) ReceiveClientConfirmation(reader *bufio.Reader) (bool, error) {
-	confirmData, readErr := reader.ReadBytes('\n')
-	if readErr != nil {
-		return false, fmt.Errorf("failed to read confirm info: %s", readErr)
+	var decLength uint32
+	if readErr := binary.Read(reader, binary.LittleEndian, &decLength); readErr != nil {
+		return false, readErr
 	}
-	info := new(protocol.DataInfo)
-	decodeErr := info.Decode(confirmData)
+	confirmData := make([]byte, decLength)
+	if _, readErr := io.ReadFull(reader, confirmData); readErr != nil {
+		return false, readErr
+	}
+
+	receive := new(protocol.Packet)
+	decodeErr := receive.Decode(confirmData)
 	if decodeErr != nil {
 		return false, decodeErr
 	}
-	if info.Type == protocol.Confirm_Accept {
-		return true, nil
-	}
-	return false, nil
+	return receive.DataType == protocol.Confirm, nil
 }
 
-func (s *Server) SendFiles(writer *bufio.Writer, files []string) {
-	for _, fileName := range files {
-		if err := s.WriteFile(writer, fileName); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to write file %s: %s\n", fileName, err)
-			continue
+func (s *Server) SendFilesData(writer *bufio.Writer) error {
+	for i := 0; i < s.listlength; i++ {
+		filename, _, statErr := s.GetFileStat(s.filelist[i])
+		if statErr != nil {
+			return statErr
 		}
-	}
-}
+		metaPacket := protocol.NewPacket(protocol.FileMeta, filename, 0)
+		if metaErr := metaPacket.EnableAndWrite(writer); metaErr != nil {
+			return metaErr
+		}
 
-func (s *Server) WriteFile(writer *bufio.Writer, file string) error {
-	filename, filesize := s.GetFileStat(file)
-	info := protocol.NewDataInfo(filename, filesize, protocol.File_Info_Data)
-	encodedInfo, encodeErr := info.Encode()
-	if encodeErr != nil {
-		return encodeErr
-	}
+		openFile, openErr := os.OpenFile(s.filelist[i], os.O_RDONLY, 0644)
+		if openErr != nil {
+			return openErr
+		}
+		defer openFile.Close()
 
-	if _, writeErr := writer.Write(encodedInfo); writeErr != nil {
-		return fmt.Errorf("failed to write file info: %s", writeErr)
-	}
-	if writeErr := writer.WriteByte('\n'); writeErr != nil {
-		return fmt.Errorf("failed to write newline after file info: %s", writeErr)
-	}
-	if flushErr := writer.Flush(); flushErr != nil {
-		return fmt.Errorf("failed to flush writer after file info: %s", flushErr)
-	}
-
-	fp, openErr := os.Open(file)
-	if openErr != nil {
-		return fmt.Errorf("failed to open file %s: %s", file, openErr)
-	}
-	defer fp.Close()
-
-	if _, copyErr := io.CopyN(writer, fp, filesize); copyErr != nil {
-		return fmt.Errorf("failed to copy file data for %s: %s", file, copyErr)
-	}
-	if flushErr := writer.Flush(); flushErr != nil {
-		return fmt.Errorf("failed to flush writer after file data: %s", flushErr)
+		fileCopyBuf := make([]byte, 64*1024)
+		if _, copyErr := io.CopyBuffer(writer, openFile, fileCopyBuf); copyErr != nil {
+			return copyErr
+		}
+		if flushErr := writer.Flush(); flushErr != nil {
+			return flushErr
+		}
 	}
 	return nil
 }
 
-func (s *Server) GetFileStat(file string) (string, int64) {
-	info, statErr := os.Stat(file)
-
-	if os.IsNotExist(statErr) {
-		fmt.Fprintf(os.Stderr, "file: %s does not exist\n", file)
-		os.Exit(utils.ErrFileStat)
-	} else if info.IsDir() {
-		fmt.Fprintf(os.Stderr, "file: %s is a directory\n", file)
-		os.Exit(utils.ErrFileStat)
-	} else if statErr != nil {
-		fmt.Fprintf(os.Stderr, "error stating file: %s\n", statErr)
-		os.Exit(utils.ErrFileStat)
+func (s *Server) GetFileStat(path string) (string, int64, error) {
+	fp := filepath.Clean(path)
+	filestat, statErr := os.Stat(fp)
+	if statErr != nil {
+		if os.IsNotExist(statErr) {
+			return "", 0, fmt.Errorf("file does not exist: %s", fp)
+		}
+		if os.IsPermission(statErr) {
+			return "", 0, fmt.Errorf("permission denied: %s", fp)
+		}
+		return "", 0, statErr
 	}
-
-	return filepath.Base(info.Name()), info.Size()
+	if filestat.IsDir() {
+		return "", 0, fmt.Errorf("file can not be a folder: %s", fp)
+	}
+	return filepath.Base(filestat.Name()), filestat.Size(), nil
 }

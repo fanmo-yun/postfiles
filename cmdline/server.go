@@ -26,7 +26,10 @@ var serverCmd = &cobra.Command{
 
 		ip, port := utils.ValidateIPAndPort(serverIP, serverPort)
 		fmt.Fprintf(cmd.OutOrStdout(), "Starting server at %s:%d\n", ip, port)
-		server := server.NewServer(ip, port)
-		server.ServerRun(serverFiles)
+		server := server.NewServer(ip, port, serverFiles)
+		if err := server.Start(); err != nil {
+			fmt.Fprintf(cmd.OutOrStderr(), "Error starting server: %s\n", err)
+			return
+		}
 	},
 }

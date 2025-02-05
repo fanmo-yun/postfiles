@@ -21,7 +21,7 @@ func Execute() {
 	rootCmd.AddCommand(serverCmd)
 	serverCmd.Flags().StringVarP(&serverIP, "ip", "i", "", "IP Address (default \"Ip currently in use\")")
 	serverCmd.Flags().IntVarP(&serverPort, "port", "p", 8877, "Port Number")
-	serverCmd.Flags().StringSliceVarP(&serverFiles, "files", "f", []string{}, "Files to serve")
+	serverCmd.Flags().StringSliceVarP(&serverFiles, "file", "f", []string{}, "Files to serve")
 
 	rootCmd.AddCommand(clientCmd)
 	clientCmd.Flags().StringVarP(&clientIP, "ip", "i", "", "IP Address (default \"Ip currently in use\")")
