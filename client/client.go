@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -13,143 +14,121 @@ import (
 )
 
 type ClientInterface interface {
-	ClientRun()
-	HandleConnection(conn net.Conn)
-	ReceiveFileAndSave(reader *bufio.Reader, info *protocol.DataInfo)
-	ValidateSavePath()
-	ValidateSaveFileStat(filepath string)
-	ProcessFileCount(info *protocol.DataInfo)
-	CountIsEmpty() bool
-	PromptConfirm() bool
-	SendConfirmation(writer *bufio.Writer) error
+	Start() error
+	HandleTransfer()
+	ReceiveFileList(*bufio.Reader) error
+	ShowFileList() bool
+	PromptConfirmation() bool
+	SendConfirmation(*bufio.Writer) error
+	ReceiveFileAndSave(*bufio.Reader) error
+	ValidateSavePath() error
 }
 
 type Client struct {
-	IP       string
-	Port     int
-	SavePath string
-	Count    int16
-	Size     int64
+	ip       string
+	port     int
+	savepath string
+	conn     net.Conn
+	filemap  map[string]int64
 }
 
-func NewClient(IP string, Port int, SavePath string) *Client {
-	client := &Client{IP, Port, SavePath, 0, 0}
+func NewClient(ip string, port int, savepath string) *Client {
+	client := &Client{
+		ip:       ip,
+		port:     port,
+		savepath: filepath.Clean(savepath),
+		filemap:  make(map[string]int64, 16),
+	}
 	return client
 }
 
-func (c *Client) ClientRun() {
-	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", c.IP, c.Port))
+func (c *Client) Start() error {
+	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", c.ip, c.port))
 	if connErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to connect: %s\n", connErr)
-		os.Exit(utils.ErrClient)
+		return connErr
 	}
 	defer conn.Close()
+	c.conn = conn
 
-	c.HandleConnection(conn)
+	c.HandleTransfer()
+	return nil
 }
 
-func (c *Client) HandleConnection(conn net.Conn) {
-	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
+func (c *Client) HandleTransfer() {
+	reader := bufio.NewReaderSize(c.conn, 4*1024)
+	writer := bufio.NewWriterSize(c.conn, 4*1024)
 
-LOOP:
-	for {
-		msg, readErr := reader.ReadBytes('\n')
-		if readErr != nil {
-			if readErr == io.EOF {
-				break LOOP
-			}
-			fmt.Fprintf(os.Stderr, "Failed to read message type: %s\n", readErr)
-			os.Exit(utils.ErrClient)
+	if recvErr := c.ReceiveFileList(reader); recvErr != nil {
+		if errors.Is(recvErr, io.EOF) {
+			return
 		}
-		decMsg := new(protocol.DataInfo)
-		decodeErr := decMsg.Decode(msg)
-		if decodeErr != nil {
-			fmt.Fprintf(os.Stderr, "Failed to decode message: %s\n", decodeErr)
-			continue
-		}
-
-		switch decMsg.Type {
-		case protocol.File_Info_Data:
-			if c.ValidateSaveFileStat(filepath.Join(c.SavePath, decMsg.Name)) != nil {
-				fmt.Fprintf(os.Stderr, "Failed to validate file: %s\n", decMsg.Name)
-				continue
-			}
-			c.ReceiveFileAndSave(reader, decMsg)
-
-		case protocol.File_Count:
-			c.ProcessFileCount(decMsg)
-
-		case protocol.Confirm_Accept:
-			fmt.Fprintf(os.Stdout, "All file count: %d, All file size: %s\n\n", c.Count, utils.ToReadableSize(c.Size))
-			if c.CountIsEmpty() || !c.PromptConfirm() {
-				break LOOP
-			}
-			if err := c.SendConfirmation(writer); err != nil {
-				break LOOP
-			}
-
-		default:
-			fmt.Fprintf(os.Stderr, "Unknown message type\n")
-			break LOOP
-		}
-	}
-}
-
-func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, info *protocol.DataInfo) {
-	fp, createErr := os.Create(filepath.Join(c.SavePath, info.Name))
-	if createErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to receive file list: %s\n", recvErr)
 		return
 	}
-	defer fp.Close()
-
-	mw := io.MultiWriter(fp, utils.CreateProcessBar(info.Size, info.Name))
-
-	if _, copyErr := io.CopyN(mw, reader, info.Size); copyErr != nil {
-		if copyErr != io.EOF {
-			fmt.Fprintf(os.Stderr, "Failed to copy file data: %s\n", copyErr)
-			os.Exit(utils.ErrClient)
+	if !c.ShowFileList() || !c.PromptConfirmation() {
+		return
+	}
+	if confirmErr := c.SendConfirmation(writer); confirmErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to send confirmation: %s\n", confirmErr)
+		return
+	}
+	for len(c.filemap) > 0 {
+		if recvErr := c.ReceiveFileAndSave(reader); recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				return
+			}
+			fmt.Fprintf(os.Stderr, "Failed to receive file: %s\n", recvErr)
+			return
 		}
 	}
 }
 
-func (c *Client) ValidateSavePath() {
-	savepathStat, statErr := os.Stat(c.SavePath)
-	if os.IsNotExist(statErr) || !savepathStat.IsDir() {
-		fmt.Fprintf(os.Stderr, "Save path %s does not exist or is not a directory\n", c.SavePath)
-		os.Exit(utils.ErrDirStat)
-	}
-}
-
-func (c *Client) ValidateSaveFileStat(filepath string) error {
-	_, statErr := os.Stat(filepath)
-	if statErr == nil {
-		return fmt.Errorf("file already exists: %s", filepath)
-	}
-	if os.IsNotExist(statErr) {
-		file, createErr := os.Create(filepath)
-		if createErr != nil {
-			return fmt.Errorf("failed to create file: %s", createErr)
+func (c *Client) ReceiveFileList(reader *bufio.Reader) error {
+	for {
+		recvPkt := new(protocol.Packet)
+		if readErr := recvPkt.ReadAndDecode(reader); readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return nil
+			}
+			return readErr
 		}
-		defer file.Close()
-		return nil
+
+		switch recvPkt.DataType {
+		case protocol.FileQuantity:
+			c.filemap[recvPkt.FileName] = recvPkt.FileSize
+
+		case protocol.EndOfTransmission:
+			return nil
+
+		default:
+			return errors.New("unknown message type")
+		}
 	}
-	return fmt.Errorf("failed to validate file: %s", statErr)
 }
 
-func (c *Client) CountIsEmpty() bool {
-	return c.Count == 0
+func (c *Client) ShowFileList() bool {
+	if len(c.filemap) == 0 {
+		fmt.Fprintf(os.Stderr, "No files to download\n")
+		return false
+	}
+
+	totalSize := int64(0)
+	for name, size := range c.filemap {
+		fmt.Fprintf(os.Stdout, "[File] %s [Size] %s\n", name, utils.ToReadableSize(size))
+		totalSize += size
+	}
+	fmt.Fprintf(os.Stdout, "[Total] %d files, %s\n", len(c.filemap), utils.ToReadableSize(totalSize))
+
+	return true
 }
 
-func (c *Client) ProcessFileCount(info *protocol.DataInfo) {
-	c.Count += 1
-	c.Size += info.Size
-	fmt.Fprintf(os.Stdout, "[%d] - %s - %s\n", c.Count, info.Name, utils.ToReadableSize(info.Size))
-}
-
-func (c *Client) PromptConfirm() bool {
+func (c *Client) PromptConfirmation() bool {
 	fmt.Fprintf(os.Stdout, "Confirm accept[Y/n]: ")
-	confirm := utils.Readin()
+	confirm, readinErr := utils.Readin()
+	if readinErr != nil {
+		return false
+	}
+
 	switch strings.ToLower(confirm) {
 	case "y", "yes":
 		return true
@@ -161,20 +140,58 @@ func (c *Client) PromptConfirm() bool {
 }
 
 func (c *Client) SendConfirmation(writer *bufio.Writer) error {
-	confirmInfo := protocol.NewDataInfo("Confirm_Accept", 0, protocol.Confirm_Accept)
-	encodedInfo, encodeErr := confirmInfo.Encode()
-	if encodeErr != nil {
-		return encodeErr
+	confirmPkt := protocol.NewPacket(protocol.Confirm, "", 0)
+	if confirmErr := confirmPkt.EnableAndWrite(writer); confirmErr != nil {
+		return confirmErr
+	}
+	return writer.Flush()
+}
+
+func (c *Client) ReceiveFileAndSave(reader *bufio.Reader) error {
+	metaPkt := new(protocol.Packet)
+	if metaErr := metaPkt.ReadAndDecode(reader); metaErr != nil {
+		if errors.Is(metaErr, io.EOF) {
+			return nil
+		}
+		return metaErr
+	}
+	filesize, ok := c.filemap[metaPkt.FileName]
+	if !ok {
+		return fmt.Errorf("file not found: %s", metaPkt.FileName)
 	}
 
-	if _, writeErr := writer.Write(encodedInfo); writeErr != nil {
-		return fmt.Errorf("failed to write file info: %s", writeErr)
+	filePath := filepath.Join(c.savepath, metaPkt.FileName)
+	file, createErr := os.Create(filePath)
+	if createErr != nil {
+		return fmt.Errorf("[%s] cannot create file: %s", metaPkt.FileName, createErr)
 	}
-	if writeErr := writer.WriteByte('\n'); writeErr != nil {
-		return fmt.Errorf("failed to write newline after file info: %s", writeErr)
+	defer file.Close()
+
+	mw := io.MultiWriter(file, utils.CreateProcessBar(filesize, metaPkt.FileName))
+	if _, copyErr := io.CopyN(mw, reader, filesize); copyErr != nil {
+		if errors.Is(copyErr, io.EOF) {
+			return nil
+		}
+		return fmt.Errorf("[%s] failed to copy file data: %s", metaPkt.FileName, copyErr)
 	}
-	if flushErr := writer.Flush(); flushErr != nil {
-		return fmt.Errorf("failed to flush writer after file info: %s", flushErr)
+	delete(c.filemap, metaPkt.FileName)
+	return nil
+}
+
+func (c *Client) ValidateSavePath() error {
+	savepathStat, statErr := os.Stat(c.savepath)
+	if os.IsNotExist(statErr) || !savepathStat.IsDir() {
+		return fmt.Errorf("[%s] path does not exist or is not a folder", c.savepath)
 	}
+
+	file, err := os.CreateTemp(c.savepath, ".write_test")
+	if err != nil {
+		return fmt.Errorf("[%s] path is not writable", c.savepath)
+	}
+	file.Close()
+	if removeErr := os.Remove(file.Name()); removeErr != nil {
+		return fmt.Errorf("[%s] path is not writable", c.savepath)
+	}
+
 	return nil
 }

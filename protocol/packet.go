@@ -59,11 +59,11 @@ func (dp *Packet) EnableAndWrite(writer *bufio.Writer) error {
 }
 
 func (dp *Packet) ReadAndDecode(reader *bufio.Reader) error {
-	var decLength uint32
-	if readErr := binary.Read(reader, binary.LittleEndian, &decLength); readErr != nil {
+	var pktLen uint32
+	if readErr := binary.Read(reader, binary.LittleEndian, &pktLen); readErr != nil {
 		return readErr
 	}
-	decData := make([]byte, decLength)
+	decData := make([]byte, pktLen)
 	_, readErr := io.ReadFull(reader, decData)
 	if readErr != nil {
 		return readErr

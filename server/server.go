@@ -3,10 +3,8 @@ package server
 import (
 	"bufio"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -19,14 +17,14 @@ import (
 
 type ServerInterface interface {
 	Start() error
-	HandleConnection(conn net.Conn)
+	HandleConnection(net.Conn)
 	HandleSignals()
 	Shutdown()
 	IsShutdown() bool
-	SendFilesQuantityAndInfomation(writer *bufio.Writer) error
-	ReceiveClientConfirmation(reader *bufio.Reader) (bool, error)
-	SendFilesData(writer *bufio.Writer) error
-	GetFileStat(path string) (string, int64, error)
+	SendFilesQuantityAndInfomation(*bufio.Writer) error
+	ReceiveClientConfirmation(*bufio.Reader) (bool, error)
+	SendFilesData(*bufio.Writer) error
+	GetFileStat(string) (string, int64, error)
 }
 
 type Server struct {
@@ -95,22 +93,22 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		s.wg.Done()
 	}()
 
-	reader := bufio.NewReaderSize(conn, 16)
+	reader := bufio.NewReaderSize(conn, 4*1024)
 	writer := bufio.NewWriterSize(conn, 4*1024)
 	conn.SetDeadline(time.Now().Add(15 * time.Second))
 
-	if err := s.SendFilesQuantityAndInfomation(writer); err != nil {
-		log.Printf("Failed to send file metadata: %s\n", err)
+	if snedErr := s.SendFilesQuantityAndInfomation(writer); snedErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to send file quantity and information: %s\n", snedErr)
 		return
 	}
 	isConfirm, recvErr := s.ReceiveClientConfirmation(reader)
 	if recvErr != nil {
-		log.Printf("Failed to receive client confirmation: %s\n", recvErr)
+		fmt.Fprintf(os.Stderr, "Failed to receive client confirmation: %s\n", recvErr)
 		return
 	}
 	if isConfirm {
-		if err := s.SendFilesData(writer); err != nil {
-			log.Printf("Failed to send files data: %s\n", err)
+		if snedErr := s.SendFilesData(writer); snedErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to send file data: %s\n", snedErr)
 			return
 		}
 	}
@@ -134,7 +132,7 @@ func (s *Server) Shutdown() {
 	s.connectionMap.Range(func(key, value interface{}) bool {
 		if conn, ok := value.(net.Conn); ok {
 			if closeErr := conn.Close(); closeErr != nil {
-				log.Printf("Failed to close connection: %s\n", closeErr)
+				fmt.Fprintf(os.Stderr, "Failed to close connection: %s\n", closeErr)
 			}
 		}
 		return true
@@ -158,13 +156,13 @@ func (s *Server) SendFilesQuantityAndInfomation(writer *bufio.Writer) error {
 		if statErr != nil {
 			return statErr
 		}
-		quantityPacket := protocol.NewPacket(protocol.FileQuantity, filename, filesize)
-		if quantitErr := quantityPacket.EnableAndWrite(writer); quantitErr != nil {
-			return quantitErr
+		quantityPkt := protocol.NewPacket(protocol.FileQuantity, filename, filesize)
+		if quantityErr := quantityPkt.EnableAndWrite(writer); quantityErr != nil {
+			return quantityErr
 		}
 	}
-	endPacket := protocol.NewPacket(protocol.EndOfTransmission, "", 0)
-	if endErr := endPacket.EnableAndWrite(writer); endErr != nil {
+	endPkt := protocol.NewPacket(protocol.EndOfTransmission, "", 0)
+	if endErr := endPkt.EnableAndWrite(writer); endErr != nil {
 		return endErr
 	}
 	if flushErr := writer.Flush(); flushErr != nil {
@@ -174,26 +172,16 @@ func (s *Server) SendFilesQuantityAndInfomation(writer *bufio.Writer) error {
 }
 
 func (s *Server) ReceiveClientConfirmation(reader *bufio.Reader) (bool, error) {
-	var decLength uint32
-	if readErr := binary.Read(reader, binary.LittleEndian, &decLength); readErr != nil {
+	confirmPkt := new(protocol.Packet)
+	if readErr := confirmPkt.ReadAndDecode(reader); readErr != nil {
 		return false, readErr
 	}
-	confirmData := make([]byte, decLength)
-	if _, readErr := io.ReadFull(reader, confirmData); readErr != nil {
-		return false, readErr
-	}
-
-	receive := new(protocol.Packet)
-	decodeErr := receive.Decode(confirmData)
-	if decodeErr != nil {
-		return false, decodeErr
-	}
-	return receive.DataType == protocol.Confirm, nil
+	return confirmPkt.DataType == protocol.Confirm, nil
 }
 
 func (s *Server) SendFilesData(writer *bufio.Writer) error {
 	for i := 0; i < s.listlength; i++ {
-		filename, _, statErr := s.GetFileStat(s.filelist[i])
+		filename, filesize, statErr := s.GetFileStat(s.filelist[i])
 		if statErr != nil {
 			return statErr
 		}
@@ -208,8 +196,7 @@ func (s *Server) SendFilesData(writer *bufio.Writer) error {
 		}
 		defer openFile.Close()
 
-		fileCopyBuf := make([]byte, 64*1024)
-		if _, copyErr := io.CopyBuffer(writer, openFile, fileCopyBuf); copyErr != nil {
+		if _, copyErr := io.CopyN(writer, openFile, filesize); copyErr != nil {
 			return copyErr
 		}
 		if flushErr := writer.Flush(); flushErr != nil {
@@ -224,15 +211,15 @@ func (s *Server) GetFileStat(path string) (string, int64, error) {
 	filestat, statErr := os.Stat(fp)
 	if statErr != nil {
 		if os.IsNotExist(statErr) {
-			return "", 0, fmt.Errorf("file does not exist: %s", fp)
+			return "", 0, fmt.Errorf("[%s] file does not exist", fp)
 		}
 		if os.IsPermission(statErr) {
-			return "", 0, fmt.Errorf("permission denied: %s", fp)
+			return "", 0, fmt.Errorf("[%s] permission denied", fp)
 		}
 		return "", 0, statErr
 	}
 	if filestat.IsDir() {
-		return "", 0, fmt.Errorf("file can not be a folder: %s", fp)
+		return "", 0, fmt.Errorf("[%s] can not be a folder", fp)
 	}
 	return filepath.Base(filestat.Name()), filestat.Size(), nil
 }
