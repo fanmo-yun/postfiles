@@ -38,6 +38,7 @@ type Server struct {
 	wg            *sync.WaitGroup
 	ctx           context.Context
 	cancel        context.CancelFunc
+	connCtxs      *sync.Map
 }
 
 func NewServer(ip string, port int, filelist []string) *Server {
@@ -52,6 +53,7 @@ func NewServer(ip string, port int, filelist []string) *Server {
 		wg:            new(sync.WaitGroup),
 		ctx:           ctx,
 		cancel:        cancel,
+		connCtxs:      new(sync.Map),
 	}
 }
 
@@ -79,17 +81,21 @@ func (s *Server) Start() error {
 				}
 				continue
 			}
+			connCtx, cancelConn := context.WithCancel(s.ctx)
+			s.connCtxs.Store(conn.RemoteAddr(), cancelConn)
+
 			s.wg.Add(1)
 			s.connectionMap.Store(conn.RemoteAddr(), conn)
-			go s.HandleConnection(conn)
+			go s.HandleConnection(connCtx, conn)
 		}
 	}
 }
 
-func (s *Server) HandleConnection(conn net.Conn) {
+func (s *Server) HandleConnection(ctx context.Context, conn net.Conn) {
 	defer func() {
 		conn.Close()
 		s.connectionMap.Delete(conn.RemoteAddr())
+		s.connCtxs.Delete(conn.RemoteAddr())
 		s.wg.Done()
 	}()
 
@@ -115,6 +121,9 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			return
 		}
 	}
+
+	<-ctx.Done()
+	fmt.Fprintf(os.Stdout, "Connection aborted due to server shutdown.")
 }
 
 func (s *Server) HandleSignals() {
