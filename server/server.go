@@ -95,10 +95,13 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	reader := bufio.NewReaderSize(conn, 4*1024)
 	writer := bufio.NewWriterSize(conn, 4*1024)
-	conn.SetDeadline(time.Now().Add(15 * time.Second))
+	if err := conn.SetDeadline(time.Now().Add(15 * time.Second)); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to set connection deadline: %s\n", err)
+		return
+	}
 
-	if snedErr := s.SendFilesQuantityAndInfomation(writer); snedErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to send file quantity and information: %s\n", snedErr)
+	if sendErr := s.SendFilesQuantityAndInfomation(writer); sendErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to send file quantity and information: %s\n", sendErr)
 		return
 	}
 	isConfirm, recvErr := s.ReceiveClientConfirmation(reader)
