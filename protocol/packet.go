@@ -31,42 +31,36 @@ func NewPacket(DataType DataType, FileName string, FileSize int64) *Packet {
 
 func (dp *Packet) Encode() ([]byte, uint32, error) {
 	bytes := new(bytes.Buffer)
-	if err := json.NewEncoder(bytes).Encode(dp); err != nil {
-		return nil, 0, err
+	if encodeErr := json.NewEncoder(bytes).Encode(dp); encodeErr != nil {
+		return nil, 0, encodeErr
 	}
 	return bytes.Bytes(), uint32(bytes.Len()), nil
 }
 
 func (dp *Packet) Decode(Bytes []byte) error {
-	if err := json.NewDecoder(bytes.NewReader(Bytes)).Decode(dp); err != nil {
-		return err
-	}
-	return nil
+	return json.NewDecoder(bytes.NewReader(Bytes)).Decode(dp)
 }
 
-func (dp *Packet) EnableAndWrite(writer *bufio.Writer) error {
-	encodedPacket, packetLen, encodeErr := dp.Encode()
+func (dp *Packet) EnableAndWrite(writer *bufio.Writer) (int, error) {
+	encPkt, pktLen, encodeErr := dp.Encode()
 	if encodeErr != nil {
-		return encodeErr
+		return 0, encodeErr
 	}
-	if binWriteErr := binary.Write(writer, binary.LittleEndian, packetLen); binWriteErr != nil {
-		return binWriteErr
+	if binWriteErr := binary.Write(writer, binary.LittleEndian, pktLen); binWriteErr != nil {
+		return 0, binWriteErr
 	}
-	if _, writeErr := writer.Write(encodedPacket); writeErr != nil {
-		return writeErr
-	}
-	return nil
+	return writer.Write(encPkt)
 }
 
-func (dp *Packet) ReadAndDecode(reader *bufio.Reader) error {
+func (dp *Packet) ReadAndDecode(reader *bufio.Reader) (int, error) {
 	var pktLen uint32
 	if readErr := binary.Read(reader, binary.LittleEndian, &pktLen); readErr != nil {
-		return readErr
+		return 0, readErr
 	}
-	decData := make([]byte, pktLen)
-	_, readErr := io.ReadFull(reader, decData)
+	decBuf := make([]byte, pktLen)
+	n, readErr := io.ReadFull(reader, decBuf)
 	if readErr != nil {
-		return readErr
+		return 0, readErr
 	}
-	return dp.Decode(decData)
+	return n, dp.Decode(decBuf)
 }

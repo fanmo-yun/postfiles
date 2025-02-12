@@ -33,13 +33,12 @@ type Client struct {
 }
 
 func NewClient(ip string, port int, savepath string) *Client {
-	client := &Client{
+	return &Client{
 		ip:       ip,
 		port:     port,
 		savepath: filepath.Clean(savepath),
 		filemap:  make(map[string]int64, 16),
 	}
-	return client
 }
 
 func (c *Client) Start() error {
@@ -86,10 +85,7 @@ func (c *Client) HandleTransfer() {
 func (c *Client) ReceiveFileList(reader *bufio.Reader) error {
 	for {
 		recvPkt := new(protocol.Packet)
-		if readErr := recvPkt.ReadAndDecode(reader); readErr != nil {
-			if errors.Is(readErr, io.EOF) {
-				return nil
-			}
+		if _, readErr := recvPkt.ReadAndDecode(reader); readErr != nil {
 			return readErr
 		}
 
@@ -141,7 +137,7 @@ func (c *Client) PromptConfirmation() bool {
 
 func (c *Client) SendConfirmation(writer *bufio.Writer) error {
 	confirmPkt := protocol.NewPacket(protocol.Confirm, "", 0)
-	if confirmErr := confirmPkt.EnableAndWrite(writer); confirmErr != nil {
+	if _, confirmErr := confirmPkt.EnableAndWrite(writer); confirmErr != nil {
 		return confirmErr
 	}
 	return writer.Flush()
@@ -149,10 +145,7 @@ func (c *Client) SendConfirmation(writer *bufio.Writer) error {
 
 func (c *Client) ReceiveFileAndSave(reader *bufio.Reader) error {
 	metaPkt := new(protocol.Packet)
-	if metaErr := metaPkt.ReadAndDecode(reader); metaErr != nil {
-		if errors.Is(metaErr, io.EOF) {
-			return nil
-		}
+	if _, metaErr := metaPkt.ReadAndDecode(reader); metaErr != nil {
 		return metaErr
 	}
 	filesize, ok := c.filemap[metaPkt.FileName]
@@ -170,7 +163,7 @@ func (c *Client) ReceiveFileAndSave(reader *bufio.Reader) error {
 	mw := io.MultiWriter(file, utils.CreateProcessBar(filesize, metaPkt.FileName))
 	if _, copyErr := io.CopyN(mw, reader, filesize); copyErr != nil {
 		if errors.Is(copyErr, io.EOF) {
-			return nil
+			return io.EOF
 		}
 		return fmt.Errorf("[%s] failed to copy file data: %s", metaPkt.FileName, copyErr)
 	}

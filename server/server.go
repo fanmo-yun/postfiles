@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -99,8 +100,8 @@ func (s *Server) HandleConnection(ctx context.Context, conn net.Conn) {
 		s.wg.Done()
 	}()
 
-	reader := bufio.NewReaderSize(conn, 4*1024)
-	writer := bufio.NewWriterSize(conn, 4*1024)
+	reader := bufio.NewReaderSize(conn, 64*1024)
+	writer := bufio.NewWriterSize(conn, 64*1024)
 	if err := conn.SetDeadline(time.Now().Add(15 * time.Second)); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to set connection deadline: %s\n", err)
 		return
@@ -112,6 +113,9 @@ func (s *Server) HandleConnection(ctx context.Context, conn net.Conn) {
 	}
 	isConfirm, recvErr := s.ReceiveClientConfirmation(reader)
 	if recvErr != nil {
+		if errors.Is(recvErr, io.EOF) {
+			return
+		}
 		fmt.Fprintf(os.Stderr, "Failed to receive client confirmation: %s\n", recvErr)
 		return
 	}
@@ -169,12 +173,12 @@ func (s *Server) SendFilesQuantityAndInfomation(writer *bufio.Writer) error {
 			return statErr
 		}
 		quantityPkt := protocol.NewPacket(protocol.FileQuantity, filename, filesize)
-		if quantityErr := quantityPkt.EnableAndWrite(writer); quantityErr != nil {
+		if _, quantityErr := quantityPkt.EnableAndWrite(writer); quantityErr != nil {
 			return quantityErr
 		}
 	}
 	endPkt := protocol.NewPacket(protocol.EndOfTransmission, "", 0)
-	if endErr := endPkt.EnableAndWrite(writer); endErr != nil {
+	if _, endErr := endPkt.EnableAndWrite(writer); endErr != nil {
 		return endErr
 	}
 	if flushErr := writer.Flush(); flushErr != nil {
@@ -185,7 +189,7 @@ func (s *Server) SendFilesQuantityAndInfomation(writer *bufio.Writer) error {
 
 func (s *Server) ReceiveClientConfirmation(reader *bufio.Reader) (bool, error) {
 	confirmPkt := new(protocol.Packet)
-	if readErr := confirmPkt.ReadAndDecode(reader); readErr != nil {
+	if _, readErr := confirmPkt.ReadAndDecode(reader); readErr != nil {
 		return false, readErr
 	}
 	return confirmPkt.DataType == protocol.Confirm, nil
@@ -198,7 +202,7 @@ func (s *Server) SendFilesData(writer *bufio.Writer) error {
 			return statErr
 		}
 		metaPacket := protocol.NewPacket(protocol.FileMeta, filename, 0)
-		if metaErr := metaPacket.EnableAndWrite(writer); metaErr != nil {
+		if _, metaErr := metaPacket.EnableAndWrite(writer); metaErr != nil {
 			return metaErr
 		}
 

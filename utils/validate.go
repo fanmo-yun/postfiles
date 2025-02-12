@@ -9,7 +9,7 @@ import (
 )
 
 func ValidIP(ip string) error {
-	if parsErr := net.ParseIP(ip); parsErr == nil {
+	if parseErr := net.ParseIP(ip); parseErr == nil {
 		return errors.New("ip incorrect")
 	}
 	return nil
