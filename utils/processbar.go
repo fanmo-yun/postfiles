@@ -10,10 +10,13 @@ import (
 	"golang.org/x/text/width"
 )
 
-func CreateProcessBar(filesize int64, filename string) *progressbar.ProgressBar {
+func CreateProcessBar(filesize int64, filename string) (*progressbar.ProgressBar, error) {
 	barWidth := GetBarWidth()
 	textWidth := barWidth * 30 / 100
-	afterText := PadOrTruncateString(filename, textWidth)
+	afterText, strErr := PadOrTruncateString(filename, textWidth)
+	if strErr != nil {
+		return nil, strErr
+	}
 
 	processbar := progressbar.NewOptions64(
 		filesize,
@@ -27,7 +30,7 @@ func CreateProcessBar(filesize int64, filename string) *progressbar.ProgressBar 
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionFullWidth(),
 	)
-	return processbar
+	return processbar, nil
 }
 
 func GetBarWidth() int {
@@ -52,7 +55,7 @@ func GetTextWidth(s string) int {
 	return w
 }
 
-func PadOrTruncateString(s string, targetLength int) string {
+func PadOrTruncateString(s string, targetLength int) (string, error) {
 	currentWidth := GetTextWidth(s)
 	builder := new(strings.Builder)
 
@@ -68,20 +71,30 @@ func PadOrTruncateString(s string, targetLength int) string {
 			if w+runeWidth > targetLength-3 {
 				break
 			}
-			builder.WriteRune(r)
+			if _, strErr := builder.WriteRune(r); strErr != nil {
+				return "", strErr
+			}
 			w += runeWidth
 		}
-		builder.WriteString("...")
-		return builder.String()
+		if _, strErr := builder.WriteString("..."); strErr != nil {
+			return "", strErr
+		}
+		return builder.String(), nil
 	}
 
 	if currentWidth < targetLength {
 		padding := targetLength - currentWidth
-		builder.WriteString(s)
-		builder.WriteString(strings.Repeat(" ", padding))
-		return builder.String()
+		if _, strErr := builder.WriteString(s); strErr != nil {
+			return "", strErr
+		}
+		if _, strErr := builder.WriteString(strings.Repeat(" ", padding)); strErr != nil {
+			return "", strErr
+		}
+		return builder.String(), nil
 	}
 
-	builder.WriteString(s)
-	return builder.String()
+	if _, strErr := builder.WriteString(s); strErr != nil {
+		return "", strErr
+	}
+	return builder.String(), nil
 }

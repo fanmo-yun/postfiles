@@ -2,7 +2,6 @@ package server
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 type ServerInterface interface {
@@ -37,13 +38,10 @@ type Server struct {
 	connectionMap *sync.Map
 	shutdown      chan struct{}
 	wg            *sync.WaitGroup
-	ctx           context.Context
-	cancel        context.CancelFunc
 	connCtxs      *sync.Map
 }
 
 func NewServer(ip string, port int, filelist []string) *Server {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		ip:            ip,
 		port:          port,
@@ -52,18 +50,19 @@ func NewServer(ip string, port int, filelist []string) *Server {
 		connectionMap: new(sync.Map),
 		shutdown:      make(chan struct{}),
 		wg:            new(sync.WaitGroup),
-		ctx:           ctx,
-		cancel:        cancel,
 		connCtxs:      new(sync.Map),
 	}
 }
 
 func (s *Server) Start() error {
-	listener, listenErr := net.Listen("tcp", fmt.Sprintf("%s:%d", s.ip, s.port))
+	address := fmt.Sprintf("%s:%d", s.ip, s.port)
+	listener, listenErr := net.Listen("tcp", address)
 	if listenErr != nil {
 		return listenErr
 	}
 	s.listener = listener
+
+	log.Info().Str("address", address).Msg("Starting server")
 
 	go s.HandleSignals()
 
@@ -82,17 +81,15 @@ func (s *Server) Start() error {
 				}
 				continue
 			}
-			connCtx, cancelConn := context.WithCancel(s.ctx)
-			s.connCtxs.Store(conn.RemoteAddr(), cancelConn)
 
 			s.wg.Add(1)
 			s.connectionMap.Store(conn.RemoteAddr(), conn)
-			go s.HandleConnection(connCtx, conn)
+			go s.HandleConnection(conn)
 		}
 	}
 }
 
-func (s *Server) HandleConnection(ctx context.Context, conn net.Conn) {
+func (s *Server) HandleConnection(conn net.Conn) {
 	defer func() {
 		conn.Close()
 		s.connectionMap.Delete(conn.RemoteAddr())
@@ -100,15 +97,15 @@ func (s *Server) HandleConnection(ctx context.Context, conn net.Conn) {
 		s.wg.Done()
 	}()
 
-	reader := bufio.NewReaderSize(conn, 64*1024)
-	writer := bufio.NewWriterSize(conn, 64*1024)
-	if err := conn.SetDeadline(time.Now().Add(15 * time.Second)); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to set connection deadline: %s\n", err)
+	reader := bufio.NewReaderSize(conn, 32*1024)
+	writer := bufio.NewWriterSize(conn, 32*1024)
+	if setErr := conn.SetDeadline(time.Now().Add(15 * time.Second)); setErr != nil {
+		log.Error().Err(setErr).Msg("Failed to set connection deadline")
 		return
 	}
 
 	if sendErr := s.SendFilesQuantityAndInfomation(writer); sendErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to send file quantity and information: %s\n", sendErr)
+		log.Error().Err(sendErr).Msg("Failed to send file quantity and information")
 		return
 	}
 	isConfirm, recvErr := s.ReceiveClientConfirmation(reader)
@@ -116,18 +113,15 @@ func (s *Server) HandleConnection(ctx context.Context, conn net.Conn) {
 		if errors.Is(recvErr, io.EOF) {
 			return
 		}
-		fmt.Fprintf(os.Stderr, "Failed to receive client confirmation: %s\n", recvErr)
+		log.Error().Err(recvErr).Msg("Failed to receive client confirmation")
 		return
 	}
 	if isConfirm {
-		if snedErr := s.SendFilesData(writer); snedErr != nil {
-			fmt.Fprintf(os.Stderr, "Failed to send file data: %s\n", snedErr)
+		if sendErr := s.SendFilesData(writer); sendErr != nil {
+			log.Error().Err(sendErr).Msg("Failed to send file data")
 			return
 		}
 	}
-
-	<-ctx.Done()
-	fmt.Fprintf(os.Stdout, "Connection aborted due to server shutdown.")
 }
 
 func (s *Server) HandleSignals() {
@@ -139,22 +133,26 @@ func (s *Server) HandleSignals() {
 }
 
 func (s *Server) Shutdown() {
+	log.Warn().Msg("Stop server...")
 	close(s.shutdown)
-	s.cancel()
 	if s.listener != nil {
-		s.listener.Close()
+		if closeErr := s.listener.Close(); closeErr != nil {
+			log.Error().Err(closeErr).Msg("Failed to close server listener")
+		}
 	}
 
+	log.Warn().Msg("Stop connections...")
 	s.connectionMap.Range(func(key, value interface{}) bool {
 		if conn, ok := value.(net.Conn); ok {
 			if closeErr := conn.Close(); closeErr != nil {
-				fmt.Fprintf(os.Stderr, "Failed to close connection: %s\n", closeErr)
+				log.Error().Err(closeErr).Msg("Failed to close connection")
 			}
 		}
 		return true
 	})
 
 	s.wg.Wait()
+	log.Warn().Msg("Server stopped...")
 }
 
 func (s *Server) IsShutdown() bool {

@@ -54,8 +54,8 @@ func (c *Client) Start() error {
 }
 
 func (c *Client) HandleTransfer() {
-	reader := bufio.NewReaderSize(c.conn, 4*1024)
-	writer := bufio.NewWriterSize(c.conn, 4*1024)
+	reader := bufio.NewReaderSize(c.conn, 32*1024)
+	writer := bufio.NewWriterSize(c.conn, 32*1024)
 
 	if recvErr := c.ReceiveFileList(reader); recvErr != nil {
 		if errors.Is(recvErr, io.EOF) {
@@ -160,7 +160,11 @@ func (c *Client) ReceiveFileAndSave(reader *bufio.Reader) error {
 	}
 	defer file.Close()
 
-	mw := io.MultiWriter(file, utils.CreateProcessBar(filesize, metaPkt.FileName))
+	pb, pbErr := utils.CreateProcessBar(filesize, metaPkt.FileName)
+	if pbErr != nil {
+		return pbErr
+	}
+	mw := io.MultiWriter(file, pb)
 	if _, copyErr := io.CopyN(mw, reader, filesize); copyErr != nil {
 		if errors.Is(copyErr, io.EOF) {
 			return io.EOF
@@ -177,8 +181,8 @@ func (c *Client) ValidateSavePath() error {
 		return fmt.Errorf("[%s] path does not exist or is not a folder", c.savepath)
 	}
 
-	file, err := os.CreateTemp(c.savepath, ".write_test")
-	if err != nil {
+	file, tmpErr := os.CreateTemp(c.savepath, ".write_test")
+	if tmpErr != nil {
 		return fmt.Errorf("[%s] path is not writable", c.savepath)
 	}
 	file.Close()
