@@ -1,7 +1,7 @@
 package cmdline
 
 import (
-	"fmt"
+	"postfiles/log"
 
 	"github.com/spf13/cobra"
 )
@@ -15,6 +15,6 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Display version",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s - %s\n", cliName, cliVersion)
+		log.PrintToOut("%s - %s\n", cliName, cliVersion)
 	},
 }

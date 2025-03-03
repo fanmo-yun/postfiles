@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"postfiles/log"
 	"postfiles/protocol"
 	"postfiles/utils"
 	"strings"
@@ -42,12 +43,14 @@ func NewClient(ip string, port int, savepath string) *Client {
 }
 
 func (c *Client) Start() error {
-	conn, connErr := net.Dial("tcp", fmt.Sprintf("%s:%d", c.ip, c.port))
+	address := net.JoinHostPort(c.ip, fmt.Sprintf("%d", c.port))
+	conn, connErr := net.Dial("tcp", address)
 	if connErr != nil {
 		return connErr
 	}
 	defer conn.Close()
 	c.conn = conn
+	log.PrintToOut("Client start at %s, Save Path: %s\n", address, c.savepath)
 
 	c.HandleTransfer()
 	return nil
@@ -61,14 +64,14 @@ func (c *Client) HandleTransfer() {
 		if errors.Is(recvErr, io.EOF) {
 			return
 		}
-		fmt.Fprintf(os.Stderr, "Failed to receive file list: %s\n", recvErr)
+		log.PrintToErr("Failed to receive file list: %s\n", recvErr)
 		return
 	}
 	if !c.ShowFileList() || !c.PromptConfirmation() {
 		return
 	}
 	if confirmErr := c.SendConfirmation(writer); confirmErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to send confirmation: %s\n", confirmErr)
+		log.PrintToErr("Failed to send confirmation: %s\n", confirmErr)
 		return
 	}
 	for len(c.filemap) > 0 {
@@ -76,7 +79,7 @@ func (c *Client) HandleTransfer() {
 			if errors.Is(recvErr, io.EOF) {
 				return
 			}
-			fmt.Fprintf(os.Stderr, "Failed to receive file: %s\n", recvErr)
+			log.PrintToErr("Failed to receive file: %s\n", recvErr)
 			return
 		}
 	}

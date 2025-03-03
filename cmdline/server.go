@@ -1,10 +1,10 @@
 package cmdline
 
 import (
+	"postfiles/log"
 	"postfiles/server"
 	"postfiles/utils"
 
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -19,18 +19,19 @@ var serverCmd = &cobra.Command{
 	Short: "Run as server",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(serverFiles) == 0 {
-			log.Error().Msg("No files provided to serve")
+			log.PrintToErr("Server: No files provided to serve\n")
 			cmd.Usage()
 			return
 		}
 
 		ip, port, validateErr := utils.ValidateIPAndPort(serverIP, serverPort)
 		if validateErr != nil {
-			log.Error().Err(validateErr).Msg("Error validating IP and port")
+			log.PrintToErr("Server: Error validating IP and port\n")
+			return
 		}
 		server := server.NewServer(ip, port, serverFiles)
 		if err := server.Start(); err != nil {
-			log.Error().Err(err).Msg("Error starting server")
+			log.PrintToErr("Server Fatal: %s\n", err)
 			return
 		}
 	},

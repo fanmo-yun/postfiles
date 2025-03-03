@@ -1,8 +1,7 @@
 package cmdline
 
 import (
-	"fmt"
-	"os"
+	"postfiles/log"
 
 	"github.com/spf13/cobra"
 )
@@ -30,7 +29,7 @@ func Execute() {
 	rootCmd.AddCommand(versionCmd)
 
 	if executeErr := rootCmd.Execute(); executeErr != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", executeErr)
+		log.PrintToErr("Cli exec error: %s\n", executeErr)
 		return
 	}
 }

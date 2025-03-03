@@ -29,7 +29,7 @@ func NewPacket(DataType DataType, FileName string, FileSize int64) *Packet {
 	}
 }
 
-func (dp *Packet) Encode() ([]byte, uint32, error) {
+func (dp *Packet) encode() ([]byte, uint32, error) {
 	bytes := new(bytes.Buffer)
 	if encodeErr := json.NewEncoder(bytes).Encode(dp); encodeErr != nil {
 		return nil, 0, encodeErr
@@ -37,12 +37,12 @@ func (dp *Packet) Encode() ([]byte, uint32, error) {
 	return bytes.Bytes(), uint32(bytes.Len()), nil
 }
 
-func (dp *Packet) Decode(Bytes []byte) error {
+func (dp *Packet) decode(Bytes []byte) error {
 	return json.NewDecoder(bytes.NewReader(Bytes)).Decode(dp)
 }
 
 func (dp *Packet) EnableAndWrite(writer *bufio.Writer) (int, error) {
-	encPkt, pktLen, encodeErr := dp.Encode()
+	encPkt, pktLen, encodeErr := dp.encode()
 	if encodeErr != nil {
 		return 0, encodeErr
 	}
@@ -62,5 +62,5 @@ func (dp *Packet) ReadAndDecode(reader *bufio.Reader) (int, error) {
 	if readErr != nil {
 		return 0, readErr
 	}
-	return n, dp.Decode(decBuf)
+	return n, dp.decode(decBuf)
 }
