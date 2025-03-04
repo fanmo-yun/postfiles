@@ -2,17 +2,17 @@ package protocol
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"io"
 )
 
 type PacketInterface interface {
-	Encode() ([]byte, uint32, error)
-	Decode([]byte) error
-	EnableAndWrite(*bufio.Writer) error
+	encode() ([]byte, uint32, error)
+	decode([]byte) error
+	EncodeAndWrite(*bufio.Writer) error
 	ReadAndDecode(*bufio.Reader) error
+	Is(DataType) bool
 }
 
 type Packet struct {
@@ -29,30 +29,34 @@ func NewPacket(DataType DataType, FileName string, FileSize int64) *Packet {
 	}
 }
 
-func (dp *Packet) encode() ([]byte, uint32, error) {
-	bytes := new(bytes.Buffer)
-	if encodeErr := json.NewEncoder(bytes).Encode(dp); encodeErr != nil {
-		return nil, 0, encodeErr
+func (p *Packet) encode() ([]byte, uint32, error) {
+	packet, err := json.Marshal(p)
+	if err != nil {
+		return nil, 0, err
 	}
-	return bytes.Bytes(), uint32(bytes.Len()), nil
+	return packet, uint32(len(packet)), nil
 }
 
-func (dp *Packet) decode(Bytes []byte) error {
-	return json.NewDecoder(bytes.NewReader(Bytes)).Decode(dp)
+func (p *Packet) decode(Bytes []byte) error {
+	return json.Unmarshal(Bytes, p)
 }
 
-func (dp *Packet) EnableAndWrite(writer *bufio.Writer) (int, error) {
-	encPkt, pktLen, encodeErr := dp.encode()
+func (p *Packet) EncodeAndWrite(writer *bufio.Writer) (int, error) {
+	encPkt, pktLen, encodeErr := p.encode()
 	if encodeErr != nil {
 		return 0, encodeErr
 	}
 	if binWriteErr := binary.Write(writer, binary.LittleEndian, pktLen); binWriteErr != nil {
 		return 0, binWriteErr
 	}
-	return writer.Write(encPkt)
+	n, writeErr := writer.Write(encPkt)
+	if writeErr != nil {
+		return n, writeErr
+	}
+	return n, writer.Flush()
 }
 
-func (dp *Packet) ReadAndDecode(reader *bufio.Reader) (int, error) {
+func (p *Packet) ReadAndDecode(reader *bufio.Reader) (int, error) {
 	var pktLen uint32
 	if readErr := binary.Read(reader, binary.LittleEndian, &pktLen); readErr != nil {
 		return 0, readErr
@@ -62,5 +66,9 @@ func (dp *Packet) ReadAndDecode(reader *bufio.Reader) (int, error) {
 	if readErr != nil {
 		return 0, readErr
 	}
-	return n, dp.decode(decBuf)
+	return n, p.decode(decBuf)
+}
+
+func (p *Packet) Is(dt DataType) bool {
+	return p.DataType == dt
 }

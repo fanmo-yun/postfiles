@@ -11,11 +11,9 @@ import (
 )
 
 func CreateProcessBar(filesize int64, filename string) (*progressbar.ProgressBar, error) {
-	barWidth := GetBarWidth()
-	textWidth := barWidth * 30 / 100
-	afterText, strErr := PadOrTruncateString(filename, textWidth)
-	if strErr != nil {
-		return nil, strErr
+	afterText, processErr := ProcessString(filename)
+	if processErr != nil {
+		return nil, processErr
 	}
 
 	processbar := progressbar.NewOptions64(
@@ -24,7 +22,7 @@ func CreateProcessBar(filesize int64, filename string) (*progressbar.ProgressBar
 		progressbar.OptionShowElapsedTimeOnFinish(),
 		progressbar.OptionSetRenderBlankState(true),
 		progressbar.OptionOnCompletion(func() {
-			fmt.Fprintf(os.Stdout, "\n")
+			fmt.Fprintln(os.Stdout)
 		}),
 		progressbar.OptionSetPredictTime(true),
 		progressbar.OptionShowBytes(true),
@@ -55,6 +53,16 @@ func GetTextWidth(s string) int {
 	return w
 }
 
+func ProcessString(s string) (string, error) {
+	barWidth := GetBarWidth()
+	textWidth := barWidth * 30 / 100
+	afterText, strErr := PadOrTruncateString(s, textWidth)
+	if strErr != nil {
+		return "", strErr
+	}
+	return afterText, nil
+}
+
 func PadOrTruncateString(s string, targetLength int) (string, error) {
 	currentWidth := GetTextWidth(s)
 	builder := new(strings.Builder)
@@ -76,7 +84,7 @@ func PadOrTruncateString(s string, targetLength int) (string, error) {
 			}
 			w += runeWidth
 		}
-		if _, strErr := builder.WriteString("..."); strErr != nil {
+		if _, strErr := builder.WriteString("...."); strErr != nil {
 			return "", strErr
 		}
 		return builder.String(), nil

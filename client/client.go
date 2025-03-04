@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"postfiles/log"
 	"postfiles/protocol"
 	"postfiles/utils"
@@ -21,23 +20,23 @@ type ClientInterface interface {
 	ShowFileList() bool
 	PromptConfirmation() bool
 	SendConfirmation(*bufio.Writer) error
-	ReceiveFileAndSave(*bufio.Reader) error
-	ValidateSavePath() error
+	ReceiveFileAndSave(*bufio.Reader, *bufio.Writer) error
+	ValidateWritable() error
 }
 
 type Client struct {
 	ip       string
 	port     int
-	savepath string
+	savepath *os.Root
 	conn     net.Conn
 	filemap  map[string]int64
 }
 
-func NewClient(ip string, port int, savepath string) *Client {
+func NewClient(ip string, port int, savepath *os.Root) *Client {
 	return &Client{
 		ip:       ip,
 		port:     port,
-		savepath: filepath.Clean(savepath),
+		savepath: savepath,
 		filemap:  make(map[string]int64, 16),
 	}
 }
@@ -50,7 +49,7 @@ func (c *Client) Start() error {
 	}
 	defer conn.Close()
 	c.conn = conn
-	log.PrintToOut("Client start at %s, Save Path: %s\n", address, c.savepath)
+	log.PrintToOut("Client start at %s, Save Path: %s\n", address, c.savepath.Name())
 
 	c.HandleTransfer()
 	return nil
@@ -75,9 +74,11 @@ func (c *Client) HandleTransfer() {
 		return
 	}
 	for len(c.filemap) > 0 {
-		if recvErr := c.ReceiveFileAndSave(reader); recvErr != nil {
+		if recvErr := c.ReceiveFileAndSave(reader, writer); recvErr != nil {
 			if errors.Is(recvErr, io.EOF) {
 				return
+			} else if errors.Is(recvErr, os.ErrExist) {
+				continue
 			}
 			log.PrintToErr("Failed to receive file: %s\n", recvErr)
 			return
@@ -107,22 +108,22 @@ func (c *Client) ReceiveFileList(reader *bufio.Reader) error {
 
 func (c *Client) ShowFileList() bool {
 	if len(c.filemap) == 0 {
-		fmt.Fprintf(os.Stderr, "No files to download\n")
+		log.PrintToErr("No files to download\n")
 		return false
 	}
 
 	totalSize := int64(0)
 	for name, size := range c.filemap {
-		fmt.Fprintf(os.Stdout, "[File] %s [Size] %s\n", name, utils.ToReadableSize(size))
+		log.PrintToOut("[File] %s [Size] %s\n", name, utils.ToReadableSize(size))
 		totalSize += size
 	}
-	fmt.Fprintf(os.Stdout, "[Total] %d files, %s\n", len(c.filemap), utils.ToReadableSize(totalSize))
+	log.PrintToOut("[Total] %d files, %s\n", len(c.filemap), utils.ToReadableSize(totalSize))
 
 	return true
 }
 
 func (c *Client) PromptConfirmation() bool {
-	fmt.Fprintf(os.Stdout, "Confirm accept[Y/n]: ")
+	log.PrintToOut("Confirm accept[Y/n]: ")
 	confirm, readinErr := utils.Readin()
 	if readinErr != nil {
 		return false
@@ -139,27 +140,42 @@ func (c *Client) PromptConfirmation() bool {
 }
 
 func (c *Client) SendConfirmation(writer *bufio.Writer) error {
-	confirmPkt := protocol.NewPacket(protocol.Confirm, "", 0)
-	if _, confirmErr := confirmPkt.EnableAndWrite(writer); confirmErr != nil {
-		return confirmErr
-	}
-	return writer.Flush()
+	confirmPkt := protocol.NewPacket(protocol.ConfirmAccept, "", 0)
+	_, confirmErr := confirmPkt.EncodeAndWrite(writer)
+	return confirmErr
 }
 
-func (c *Client) ReceiveFileAndSave(reader *bufio.Reader) error {
+func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, writer *bufio.Writer) error {
 	metaPkt := new(protocol.Packet)
 	if _, metaErr := metaPkt.ReadAndDecode(reader); metaErr != nil {
 		return metaErr
 	}
 	filesize, ok := c.filemap[metaPkt.FileName]
 	if !ok {
-		return fmt.Errorf("file not found: %s", metaPkt.FileName)
+		return fmt.Errorf("file not found in client: %s", metaPkt.FileName)
 	}
 
-	filePath := filepath.Join(c.savepath, metaPkt.FileName)
-	file, createErr := os.Create(filePath)
+	if fstat, err := c.savepath.Stat(metaPkt.FileName); err == nil && !fstat.IsDir() {
+		procStr, procErr := utils.ProcessString(metaPkt.FileName)
+		if procErr != nil {
+			return procErr
+		}
+		log.PrintToOut("--skip-- [%s] <-- %s\n", procStr, os.ErrExist)
+		rejPkt := protocol.NewPacket(protocol.RejectFile, "", 0)
+		if _, writeErr := rejPkt.EncodeAndWrite(writer); writeErr != nil {
+			return writeErr
+		}
+		return os.ErrExist
+	}
+
+	accPkt := protocol.NewPacket(protocol.AcceptFile, "", 0)
+	if _, writeErr := accPkt.EncodeAndWrite(writer); writeErr != nil {
+		return writeErr
+	}
+
+	file, createErr := c.savepath.Create(metaPkt.FileName)
 	if createErr != nil {
-		return fmt.Errorf("[%s] cannot create file: %s", metaPkt.FileName, createErr)
+		return fmt.Errorf("[%s] cannot be create: %s", metaPkt.FileName, createErr)
 	}
 	defer file.Close()
 
@@ -178,20 +194,14 @@ func (c *Client) ReceiveFileAndSave(reader *bufio.Reader) error {
 	return nil
 }
 
-func (c *Client) ValidateSavePath() error {
-	savepathStat, statErr := os.Stat(c.savepath)
-	if os.IsNotExist(statErr) || !savepathStat.IsDir() {
-		return fmt.Errorf("[%s] path does not exist or is not a folder", c.savepath)
-	}
-
-	file, tmpErr := os.CreateTemp(c.savepath, ".write_test")
+func (c *Client) ValidateWritable() error {
+	file, tmpErr := os.CreateTemp(c.savepath.Name(), "write.tmp")
 	if tmpErr != nil {
-		return fmt.Errorf("[%s] path is not writable", c.savepath)
+		return fmt.Errorf("[%s] path is not writable", c.savepath.Name())
 	}
 	file.Close()
 	if removeErr := os.Remove(file.Name()); removeErr != nil {
-		return fmt.Errorf("[%s] path is not writable", c.savepath)
+		return fmt.Errorf("[%s] path is not writable", c.savepath.Name())
 	}
-
 	return nil
 }

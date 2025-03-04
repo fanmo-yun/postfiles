@@ -13,7 +13,6 @@ import (
 	"postfiles/protocol"
 	"sync"
 	"syscall"
-	"time"
 )
 
 type ServerInterface interface {
@@ -21,9 +20,9 @@ type ServerInterface interface {
 	Shutdown() error
 	IsShutdown() bool
 	HandleConnection(net.Conn)
-	SendFilesQuantityAndInfomation(*bufio.Writer) error
+	SendFilesQuantityAndInformation(*bufio.Writer) error
 	ReceiveClientConfirmation(*bufio.Reader) (bool, error)
-	SendFilesData(*bufio.Writer) error
+	SendFilesData(*bufio.Reader, *bufio.Writer) error
 	GetFileStat(string) (string, int64, error)
 }
 
@@ -127,12 +126,8 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	reader := bufio.NewReaderSize(conn, 32*1024)
 	writer := bufio.NewWriterSize(conn, 32*1024)
-	if setErr := conn.SetDeadline(time.Now().Add(30 * time.Second)); setErr != nil {
-		log.PrintToErr("Failed to set connection deadline: %s\n", setErr)
-		return
-	}
 
-	if sendErr := s.SendFilesQuantityAndInfomation(writer); sendErr != nil {
+	if sendErr := s.SendFilesQuantityAndInformation(writer); sendErr != nil {
 		log.PrintToErr("Failed to send file's quantity or infomation: %s\n", sendErr)
 		return
 	}
@@ -145,62 +140,74 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 	if isConfirm {
-		if sendErr := s.SendFilesData(writer); sendErr != nil {
+		if sendErr := s.SendFilesData(reader, writer); sendErr != nil {
 			log.PrintToErr("Failed to send files data: %s\n", sendErr)
 			return
 		}
 	}
 }
 
-func (s *Server) SendFilesQuantityAndInfomation(writer *bufio.Writer) error {
+func (s *Server) ReceiveClientConfirmation(reader *bufio.Reader) (bool, error) {
+	confirmPkt := new(protocol.Packet)
+	_, readErr := confirmPkt.ReadAndDecode(reader)
+	return confirmPkt.Is(protocol.ConfirmAccept), readErr
+}
+
+func (s *Server) SendFilesQuantityAndInformation(writer *bufio.Writer) error {
 	for i := range s.listlength {
 		filename, filesize, statErr := s.GetFileStat(s.filelist[i])
 		if statErr != nil {
 			return statErr
 		}
 		quantityPkt := protocol.NewPacket(protocol.FileQuantity, filename, filesize)
-		if _, quantityErr := quantityPkt.EnableAndWrite(writer); quantityErr != nil {
+		if _, quantityErr := quantityPkt.EncodeAndWrite(writer); quantityErr != nil {
 			return quantityErr
 		}
 	}
 	endPkt := protocol.NewPacket(protocol.EndOfTransmission, "", 0)
-	if _, endErr := endPkt.EnableAndWrite(writer); endErr != nil {
-		return endErr
-	}
-	if flushErr := writer.Flush(); flushErr != nil {
-		return flushErr
-	}
-	return nil
+	_, endErr := endPkt.EncodeAndWrite(writer)
+	return endErr
 }
 
-func (s *Server) ReceiveClientConfirmation(reader *bufio.Reader) (bool, error) {
-	confirmPkt := new(protocol.Packet)
-	if _, readErr := confirmPkt.ReadAndDecode(reader); readErr != nil {
-		return false, readErr
-	}
-	return confirmPkt.DataType == protocol.Confirm, nil
-}
-
-func (s *Server) SendFilesData(writer *bufio.Writer) error {
+func (s *Server) SendFilesData(reader *bufio.Reader, writer *bufio.Writer) error {
 	for i := range s.listlength {
 		filename, filesize, statErr := s.GetFileStat(s.filelist[i])
 		if statErr != nil {
 			return statErr
 		}
-		metaPacket := protocol.NewPacket(protocol.FileMeta, filename, 0)
-		if _, metaErr := metaPacket.EnableAndWrite(writer); metaErr != nil {
+
+		metaPkt := protocol.NewPacket(protocol.FileMeta, filename, 0)
+		if _, metaErr := metaPkt.EncodeAndWrite(writer); metaErr != nil {
 			return metaErr
+		}
+
+		respPkt := new(protocol.Packet)
+		if _, decErr := respPkt.ReadAndDecode(reader); decErr != nil {
+			return decErr
+		}
+
+		if respPkt.Is(protocol.RejectFile) {
+			log.PrintToOut("Client rejected file: %s\n", filename)
+			continue
+		} else if !respPkt.Is(protocol.AcceptFile) {
+			return fmt.Errorf("invalid response type: %d", respPkt.DataType)
 		}
 
 		openFile, openErr := os.OpenFile(s.filelist[i], os.O_RDONLY, 0644)
 		if openErr != nil {
 			return openErr
 		}
-		defer openFile.Close()
 
 		if _, copyErr := io.CopyN(writer, openFile, filesize); copyErr != nil {
+			if closeErr := openFile.Close(); closeErr != nil {
+				return closeErr
+			}
 			return copyErr
 		}
+		if closeErr := openFile.Close(); closeErr != nil {
+			return closeErr
+		}
+
 		if flushErr := writer.Flush(); flushErr != nil {
 			return flushErr
 		}

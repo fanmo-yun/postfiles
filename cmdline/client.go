@@ -1,6 +1,8 @@
 package cmdline
 
 import (
+	"os"
+	"path/filepath"
 	"postfiles/client"
 	"postfiles/log"
 	"postfiles/utils"
@@ -31,8 +33,15 @@ var clientCmd = &cobra.Command{
 			}
 			clientSavePath = sp
 		}
-		client := client.NewClient(ip, port, clientSavePath)
-		if validateErr := client.ValidateSavePath(); validateErr != nil {
+
+		filePath := filepath.Clean(clientSavePath)
+		rootPath, rootErr := os.OpenRoot(filePath)
+		if rootErr != nil {
+			log.PrintToErr("Failed to open root: %s\n", rootErr)
+			return
+		}
+		client := client.NewClient(ip, port, rootPath)
+		if validateErr := client.ValidateWritable(); validateErr != nil {
 			log.PrintToErr("Failed to validate save path: %s\n", validateErr)
 			return
 		}

@@ -3,8 +3,10 @@ package protocol
 type DataType uint8
 
 const (
-	FileMeta DataType = iota
+	FileMeta DataType = iota + 101
 	FileQuantity
 	EndOfTransmission
-	Confirm
+	ConfirmAccept
+	AcceptFile
+	RejectFile
 )
