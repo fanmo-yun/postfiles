@@ -154,13 +154,10 @@ func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, writer *bufio.Writer) 
 	if !ok {
 		return fmt.Errorf("file not found in client: %s", metaPkt.FileName)
 	}
+	defer delete(c.filemap, metaPkt.FileName)
 
 	if fstat, err := c.savepath.Stat(metaPkt.FileName); err == nil && !fstat.IsDir() {
-		procStr, procErr := utils.ProcessString(metaPkt.FileName)
-		if procErr != nil {
-			return procErr
-		}
-		log.PrintToOut("--skip-- [%s] <-- %s\n", procStr, os.ErrExist)
+		log.PrintToOut("--skip-- %s <-- %s\n", metaPkt.FileName, os.ErrExist)
 		rejPkt := protocol.NewPacket(protocol.RejectFile, "", 0)
 		if _, writeErr := rejPkt.EncodeAndWrite(writer); writeErr != nil {
 			return writeErr
@@ -190,7 +187,6 @@ func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, writer *bufio.Writer) 
 		}
 		return fmt.Errorf("[%s] failed to copy file data: %s", metaPkt.FileName, copyErr)
 	}
-	delete(c.filemap, metaPkt.FileName)
 	return nil
 }
 

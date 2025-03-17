@@ -69,6 +69,6 @@ func (p *Packet) ReadAndDecode(reader *bufio.Reader) (int, error) {
 	return n, p.decode(decBuf)
 }
 
-func (p *Packet) Is(dt DataType) bool {
+func (p *Packet) TypeIs(dt DataType) bool {
 	return p.DataType == dt
 }

@@ -56,6 +56,9 @@ func (s *Server) Start() error {
 		return err
 	}
 	s.listener = listener
+
+	defer s.listener.Close()
+
 	log.PrintToOut("Server start at %s\n", address)
 
 	signalCh := make(chan os.Signal, 1)
@@ -150,7 +153,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 func (s *Server) ReceiveClientConfirmation(reader *bufio.Reader) (bool, error) {
 	confirmPkt := new(protocol.Packet)
 	_, readErr := confirmPkt.ReadAndDecode(reader)
-	return confirmPkt.Is(protocol.ConfirmAccept), readErr
+	return confirmPkt.TypeIs(protocol.ConfirmAccept), readErr
 }
 
 func (s *Server) SendFilesQuantityAndInformation(writer *bufio.Writer) error {
@@ -186,10 +189,10 @@ func (s *Server) SendFilesData(reader *bufio.Reader, writer *bufio.Writer) error
 			return decErr
 		}
 
-		if respPkt.Is(protocol.RejectFile) {
+		if respPkt.TypeIs(protocol.RejectFile) {
 			log.PrintToOut("Client rejected file: %s\n", filename)
 			continue
-		} else if !respPkt.Is(protocol.AcceptFile) {
+		} else if !respPkt.TypeIs(protocol.AcceptFile) {
 			return fmt.Errorf("invalid response type: %d", respPkt.DataType)
 		}
 
