@@ -23,29 +23,28 @@ type ServerInterface interface {
 	SendFilesQuantityAndInformation(*bufio.Writer) error
 	ReceiveClientConfirmation(*bufio.Reader) (bool, error)
 	SendFilesData(*bufio.Reader, *bufio.Writer) error
+	SendFile(*bufio.Writer, string, int64) error
 	GetFileStat(string) (string, int64, error)
 }
 
 type Server struct {
-	ip         string
-	port       int
-	filelist   []string
-	listlength int
-	listener   net.Listener
-	shutdown   chan struct{}
-	connMap    *sync.Map
-	wg         *sync.WaitGroup
+	ip       string
+	port     int
+	filelist []string
+	listener net.Listener
+	shutdown chan struct{}
+	connMap  *sync.Map
+	wg       *sync.WaitGroup
 }
 
 func NewServer(ip string, port int, filelist []string) *Server {
 	return &Server{
-		ip:         ip,
-		port:       port,
-		filelist:   filelist,
-		listlength: len(filelist),
-		shutdown:   make(chan struct{}),
-		connMap:    new(sync.Map),
-		wg:         new(sync.WaitGroup),
+		ip:       ip,
+		port:     port,
+		filelist: filelist,
+		shutdown: make(chan struct{}),
+		connMap:  new(sync.Map),
+		wg:       new(sync.WaitGroup),
 	}
 }
 
@@ -157,8 +156,8 @@ func (s *Server) ReceiveClientConfirmation(reader *bufio.Reader) (bool, error) {
 }
 
 func (s *Server) SendFilesQuantityAndInformation(writer *bufio.Writer) error {
-	for i := range s.listlength {
-		filename, filesize, statErr := s.GetFileStat(s.filelist[i])
+	for _, file := range s.filelist {
+		filename, filesize, statErr := s.GetFileStat(file)
 		if statErr != nil {
 			return statErr
 		}
@@ -168,13 +167,15 @@ func (s *Server) SendFilesQuantityAndInformation(writer *bufio.Writer) error {
 		}
 	}
 	endPkt := protocol.NewPacket(protocol.EndOfTransmission, "", 0)
-	_, endErr := endPkt.EncodeAndWrite(writer)
-	return endErr
+	if _, endErr := endPkt.EncodeAndWrite(writer); endErr != nil {
+		return endErr
+	}
+	return writer.Flush()
 }
 
 func (s *Server) SendFilesData(reader *bufio.Reader, writer *bufio.Writer) error {
-	for i := range s.listlength {
-		filename, filesize, statErr := s.GetFileStat(s.filelist[i])
+	for _, file := range s.filelist {
+		filename, filesize, statErr := s.GetFileStat(file)
 		if statErr != nil {
 			return statErr
 		}
@@ -196,19 +197,8 @@ func (s *Server) SendFilesData(reader *bufio.Reader, writer *bufio.Writer) error
 			return fmt.Errorf("invalid response type: %d", respPkt.DataType)
 		}
 
-		openFile, openErr := os.OpenFile(s.filelist[i], os.O_RDONLY, 0644)
-		if openErr != nil {
-			return openErr
-		}
-
-		if _, copyErr := io.CopyN(writer, openFile, filesize); copyErr != nil {
-			if closeErr := openFile.Close(); closeErr != nil {
-				return closeErr
-			}
-			return copyErr
-		}
-		if closeErr := openFile.Close(); closeErr != nil {
-			return closeErr
+		if sendErr := s.SendFile(writer, file, filesize); sendErr != nil {
+			return sendErr
 		}
 
 		if flushErr := writer.Flush(); flushErr != nil {
@@ -216,6 +206,17 @@ func (s *Server) SendFilesData(reader *bufio.Reader, writer *bufio.Writer) error
 		}
 	}
 	return nil
+}
+
+func (s *Server) SendFile(writer *bufio.Writer, filename string, filesize int64) error {
+	openFile, openErr := os.OpenFile(filename, os.O_RDONLY, 0644)
+	if openErr != nil {
+		return openErr
+	}
+	defer openFile.Close()
+
+	_, copyErr := io.CopyN(writer, openFile, filesize)
+	return copyErr
 }
 
 func (s *Server) GetFileStat(path string) (string, int64, error) {

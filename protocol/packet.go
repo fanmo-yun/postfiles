@@ -53,7 +53,7 @@ func (p *Packet) EncodeAndWrite(writer *bufio.Writer) (int, error) {
 	if writeErr != nil {
 		return n, writeErr
 	}
-	return n, writer.Flush()
+	return n, nil
 }
 
 func (p *Packet) ReadAndDecode(reader *bufio.Reader) (int, error) {

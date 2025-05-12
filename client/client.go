@@ -42,6 +42,7 @@ func NewClient(ip string, port int, savepath *os.Root) *Client {
 }
 
 func (c *Client) Start() error {
+	defer c.savepath.Close()
 	address := net.JoinHostPort(c.ip, fmt.Sprintf("%d", c.port))
 	conn, connErr := net.Dial("tcp", address)
 	if connErr != nil {
@@ -141,8 +142,10 @@ func (c *Client) PromptConfirmation() bool {
 
 func (c *Client) SendConfirmation(writer *bufio.Writer) error {
 	confirmPkt := protocol.NewPacket(protocol.ConfirmAccept, "", 0)
-	_, confirmErr := confirmPkt.EncodeAndWrite(writer)
-	return confirmErr
+	if _, confirmErr := confirmPkt.EncodeAndWrite(writer); confirmErr != nil {
+		return confirmErr
+	}
+	return writer.Flush()
 }
 
 func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, writer *bufio.Writer) error {
@@ -170,6 +173,10 @@ func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, writer *bufio.Writer) 
 		return writeErr
 	}
 
+	if flushErr := writer.Flush(); flushErr != nil {
+		return flushErr
+	}
+
 	file, createErr := c.savepath.Create(metaPkt.FileName)
 	if createErr != nil {
 		return fmt.Errorf("[%s] cannot be create: %s", metaPkt.FileName, createErr)
@@ -187,7 +194,7 @@ func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, writer *bufio.Writer) 
 		}
 		return fmt.Errorf("[%s] failed to copy file data: %s", metaPkt.FileName, copyErr)
 	}
-	return nil
+	return writer.Flush()
 }
 
 func (c *Client) ValidateWritable() error {
