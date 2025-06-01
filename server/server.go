@@ -50,13 +50,11 @@ func NewServer(ip string, port int, filelist []string) *Server {
 
 func (s *Server) Start() error {
 	address := net.JoinHostPort(s.ip, fmt.Sprintf("%d", s.port))
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		return err
+	listener, listenErr := net.Listen("tcp", address)
+	if listenErr != nil {
+		return listenErr
 	}
 	s.listener = listener
-
-	defer s.listener.Close()
 
 	log.PrintToOut("Server start at %s\n", address)
 
@@ -65,8 +63,8 @@ func (s *Server) Start() error {
 
 	go func() {
 		for {
-			conn, err := listener.Accept()
-			if err != nil {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
 				if s.IsShutdown() {
 					return
 				}
@@ -81,32 +79,26 @@ func (s *Server) Start() error {
 	}()
 
 	<-signalCh
-	return s.Shutdown()
+	s.Shutdown()
+	return nil
 }
 
-func (s *Server) Shutdown() error {
+func (s *Server) Shutdown() {
 	log.PrintToErr("Stopping server...\n")
 	close(s.shutdown)
 
 	s.connMap.Range(func(key, value any) bool {
 		if conn, ok := value.(net.Conn); ok {
-			if closeErr := conn.Close(); closeErr != nil {
-				log.PrintToErr("Failed to close connection: %s\n", closeErr)
-			}
+			conn.Close()
 		}
 		return true
 	})
 
-	if s.listener != nil {
-		if closeErr := s.listener.Close(); closeErr != nil {
-			return closeErr
-		}
-	}
+	s.listener.Close()
 
 	s.wg.Wait()
 
 	log.PrintToErr("Server stopped\n")
-	return nil
 }
 
 func (s *Server) IsShutdown() bool {
@@ -165,6 +157,9 @@ func (s *Server) SendFilesQuantityAndInformation(writer *bufio.Writer) error {
 		if _, quantityErr := quantityPkt.EncodeAndWrite(writer); quantityErr != nil {
 			return quantityErr
 		}
+		if flushErr := writer.Flush(); flushErr != nil {
+			return flushErr
+		}
 	}
 	endPkt := protocol.NewPacket(protocol.EndOfTransmission, "", 0)
 	if _, endErr := endPkt.EncodeAndWrite(writer); endErr != nil {
@@ -183,6 +178,9 @@ func (s *Server) SendFilesData(reader *bufio.Reader, writer *bufio.Writer) error
 		metaPkt := protocol.NewPacket(protocol.FileMeta, filename, 0)
 		if _, metaErr := metaPkt.EncodeAndWrite(writer); metaErr != nil {
 			return metaErr
+		}
+		if flushErr := writer.Flush(); flushErr != nil {
+			return flushErr
 		}
 
 		respPkt := new(protocol.Packet)

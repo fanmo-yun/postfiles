@@ -48,8 +48,8 @@ func (c *Client) Start() error {
 	if connErr != nil {
 		return connErr
 	}
-	defer conn.Close()
 	c.conn = conn
+	defer c.conn.Close()
 	log.PrintToOut("Client start at %s, Save Path: %s\n", address, c.savepath.Name())
 
 	c.HandleTransfer()
@@ -164,6 +164,9 @@ func (c *Client) ReceiveFileAndSave(reader *bufio.Reader, writer *bufio.Writer) 
 		rejPkt := protocol.NewPacket(protocol.RejectFile, "", 0)
 		if _, writeErr := rejPkt.EncodeAndWrite(writer); writeErr != nil {
 			return writeErr
+		}
+		if flushErr := writer.Flush(); flushErr != nil {
+			return flushErr
 		}
 		return os.ErrExist
 	}
