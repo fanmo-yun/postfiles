@@ -5,104 +5,72 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/schollz/progressbar/v3"
 	"golang.org/x/term"
-	"golang.org/x/text/width"
 )
 
-func CreateProcessBar(filesize int64, filename string) (*progressbar.ProgressBar, error) {
-	afterText, processErr := ProcessString(filename)
-	if processErr != nil {
-		return nil, processErr
-	}
-
-	processbar := progressbar.NewOptions64(
-		filesize,
-		progressbar.OptionSetDescription(afterText),
+func NewBar(size int64, name string) (*progressbar.ProgressBar, error) {
+	desc := fitText(name)
+	bar := progressbar.NewOptions64(
+		size,
+		progressbar.OptionSetDescription(desc),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionFullWidth(),
 		progressbar.OptionShowElapsedTimeOnFinish(),
 		progressbar.OptionSetRenderBlankState(true),
+		progressbar.OptionSetPredictTime(true),
 		progressbar.OptionOnCompletion(func() {
 			fmt.Fprintln(os.Stdout)
 		}),
-		progressbar.OptionSetPredictTime(true),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionFullWidth(),
 	)
-	return processbar, nil
+	return bar, nil
 }
 
-func GetBarWidth() int {
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+func termWidth() int {
+	w, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
-		width = 80
-	}
-	return width
-}
-
-func GetTextWidth(s string) int {
-	w := 0
-	for _, r := range s {
-		switch width.LookupRune(r).Kind() {
-		case width.EastAsianFullwidth, width.EastAsianWide:
-			w += 2
-		case width.EastAsianHalfwidth, width.EastAsianNarrow,
-			width.Neutral, width.EastAsianAmbiguous:
-			w += 1
-		}
+		return 80
 	}
 	return w
 }
 
-func ProcessString(s string) (string, error) {
-	barWidth := GetBarWidth()
-	textWidth := barWidth * 30 / 100
-	afterText, strErr := PadOrTruncateString(s, textWidth)
-	if strErr != nil {
-		return "", strErr
+func textWidth(s string) int {
+	w := 0
+	for _, r := range s {
+		w += runewidth.RuneWidth(r)
 	}
-	return afterText, nil
+	return w
 }
 
-func PadOrTruncateString(s string, targetLength int) (string, error) {
-	currentWidth := GetTextWidth(s)
-	builder := new(strings.Builder)
+func fitText(s string) string {
+	w := termWidth()
+	target := w * 30 / 100
 
-	if currentWidth > targetLength {
+	return clipOrPad(s, target)
+}
+
+func clipOrPad(s string, limit int) string {
+	cur := textWidth(s)
+
+	if cur > limit {
+		var b strings.Builder
 		w := 0
 		for _, r := range s {
-			runeWidth := 1
-			switch width.LookupRune(r).Kind() {
-			case width.EastAsianFullwidth, width.EastAsianWide:
-				runeWidth = 2
-			}
-
-			if w+runeWidth > targetLength-3 {
+			rw := runewidth.RuneWidth(r)
+			if w+rw > limit-3 {
 				break
 			}
-			if _, strErr := builder.WriteRune(r); strErr != nil {
-				return "", strErr
-			}
-			w += runeWidth
+			b.WriteRune(r)
+			w += rw
 		}
-		if _, strErr := builder.WriteString("...."); strErr != nil {
-			return "", strErr
-		}
-		return builder.String(), nil
+		b.WriteString("...")
+		return b.String()
 	}
 
-	if currentWidth < targetLength {
-		padding := targetLength - currentWidth
-		if _, strErr := builder.WriteString(s); strErr != nil {
-			return "", strErr
-		}
-		if _, strErr := builder.WriteString(strings.Repeat(" ", padding)); strErr != nil {
-			return "", strErr
-		}
-		return builder.String(), nil
+	if cur < limit {
+		return s + strings.Repeat(" ", limit-cur)
 	}
 
-	if _, strErr := builder.WriteString(s); strErr != nil {
-		return "", strErr
-	}
-	return builder.String(), nil
+	return s
 }

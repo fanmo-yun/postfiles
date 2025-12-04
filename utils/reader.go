@@ -7,10 +7,10 @@ import (
 )
 
 func Readin() (string, error) {
-	reader := bufio.NewReaderSize(os.Stdin, 16)
-	confirm, readErr := reader.ReadString('\n')
-	if readErr != nil {
-		return "", readErr
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
 	}
-	return strings.TrimRight(confirm, "\r\n"), nil
+	return strings.TrimSpace(line), nil
 }
