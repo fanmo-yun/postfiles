@@ -7,66 +7,47 @@ import (
 	"io"
 )
 
-type PacketInterface interface {
-	encode() ([]byte, uint32, error)
-	decode([]byte) error
-	EncodeAndWrite(*bufio.Writer) error
-	ReadAndDecode(*bufio.Reader) error
-	Is(DataType) bool
-}
-
 type Packet struct {
-	DataType DataType `json:"DataType"`
-	FileName string   `json:"FileName"`
-	FileSize int64    `json:"FileSize"`
+	DataType DataType `json:"type"`
+	FileName string   `json:"file,omitempty"`
+	FileSize int64    `json:"size,omitempty"`
 }
 
-func NewPacket(DataType DataType, FileName string, FileSize int64) *Packet {
-	return &Packet{
-		DataType: DataType,
-		FileName: FileName,
-		FileSize: FileSize,
-	}
+func NewPacket(t DataType, name string, size int64) *Packet {
+	return &Packet{DataType: t, FileName: name, FileSize: size}
 }
 
-func (p *Packet) encode() ([]byte, uint32, error) {
-	packet, err := json.Marshal(p)
-	if err != nil {
-		return nil, 0, err
-	}
-	return packet, uint32(len(packet)), nil
+func (p *Packet) encode() ([]byte, error) {
+	return json.Marshal(p)
 }
 
 func (p *Packet) decode(Bytes []byte) error {
 	return json.Unmarshal(Bytes, p)
 }
 
-func (p *Packet) EncodeAndWrite(writer *bufio.Writer) (int, error) {
-	encPkt, pktLen, encodeErr := p.encode()
-	if encodeErr != nil {
-		return 0, encodeErr
+func (p *Packet) EncodeAndWrite(w *bufio.Writer) error {
+	body, err := p.encode()
+	if err != nil {
+		return err
 	}
-	if binWriteErr := binary.Write(writer, binary.LittleEndian, pktLen); binWriteErr != nil {
-		return 0, binWriteErr
+	if err := binary.Write(w, binary.LittleEndian, uint32(len(body))); err != nil {
+		return err
 	}
-	n, writeErr := writer.Write(encPkt)
-	if writeErr != nil {
-		return n, writeErr
-	}
-	return n, nil
+	_, err = w.Write(body)
+	return err
 }
 
-func (p *Packet) ReadAndDecode(reader *bufio.Reader) (int, error) {
+func (p *Packet) ReadAndDecode(r *bufio.Reader) error {
 	var pktLen uint32
-	if readErr := binary.Read(reader, binary.LittleEndian, &pktLen); readErr != nil {
-		return 0, readErr
+	if readErr := binary.Read(r, binary.LittleEndian, &pktLen); readErr != nil {
+		return readErr
 	}
 	decBuf := make([]byte, pktLen)
-	n, readErr := io.ReadFull(reader, decBuf)
+	_, readErr := io.ReadFull(r, decBuf)
 	if readErr != nil {
-		return 0, readErr
+		return readErr
 	}
-	return n, p.decode(decBuf)
+	return p.decode(decBuf)
 }
 
 func (p *Packet) TypeIs(dt DataType) bool {
