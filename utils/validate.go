@@ -8,44 +8,47 @@ import (
 	"golang.org/x/term"
 )
 
-func ValidIP(ip string) error {
+func ipok(ip string) error {
 	if parseErr := net.ParseIP(ip); parseErr == nil {
 		return errors.New("ip incorrect")
 	}
 	return nil
 }
 
-func ValidPort(port int) error {
-	if !(port >= 1024 && port <= 65535) {
+func portok(port int) error {
+	if port < 1024 || port > 65535 {
 		return errors.New("port incorrect")
 	}
 	return nil
 }
 
-func ValidateIPAndPort(ip string, port int) (string, int, error) {
-	if len(ip) == 0 {
-		temp_ip, genErr := GenIP()
-		if genErr != nil {
-			return "", 0, genErr
+func Check(ip string, port int) (string, int, error) {
+	if ip == "" {
+		autoIP, err := GenIP()
+		if err != nil {
+			return "", 0, err
 		}
-		ip = temp_ip
-	}
-	if ipErr := ValidIP(ip); ipErr != nil {
-		return "", 0, ipErr
+		ip = autoIP
 	}
 
-	if portErr := ValidPort(port); portErr != nil {
-		return "", 0, portErr
+	if err := ipok(ip); err != nil {
+		return "", 0, err
+	}
+
+	if err := portok(port); err != nil {
+		return "", 0, err
 	}
 
 	return ip, port, nil
 }
 
-func IsTerminal() error {
-	if !(term.IsTerminal(int(os.Stdout.Fd())) &&
-		term.IsTerminal(int(os.Stderr.Fd())) &&
-		term.IsTerminal(int(os.Stdin.Fd()))) {
-		return errors.New("not a terminal")
+func IsTerm() error {
+	stdout := term.IsTerminal(int(os.Stdout.Fd()))
+	stderr := term.IsTerminal(int(os.Stderr.Fd()))
+	stdin := term.IsTerminal(int(os.Stdin.Fd()))
+
+	if stdout && stderr && stdin {
+		return nil
 	}
-	return nil
+	return errors.New("not a terminal")
 }

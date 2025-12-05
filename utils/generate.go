@@ -1,32 +1,46 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 func GenIP() (string, error) {
-	conn, connErr := net.Dial("udp", "114.114.114.114:80")
-	if connErr != nil {
-		return "", connErr
-	}
-	defer conn.Close()
-	return strings.Split(conn.LocalAddr().String(), ":")[0], nil
-}
-
-func GetDownloadDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
+	conn, err := net.Dial("udp", "114.114.114.114:80")
 	if err != nil {
 		return "", err
 	}
-	downloadDir := filepath.Join(homeDir, "Downloads")
-	if dirStat, dirErr := os.Stat(downloadDir); os.IsNotExist(dirErr) || !dirStat.IsDir() {
-		return "", fmt.Errorf("%s does not exist or is not a folder", downloadDir)
-	} else if dirErr != nil {
-		return "", dirErr
+	defer conn.Close()
+
+	addr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return "", errors.New("unexpected local address type")
 	}
-	return downloadDir, nil
+	return addr.IP.String(), nil
+}
+
+func GetDownloadDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	dir := filepath.Join(home, "Downloads")
+	info, statErr := os.Stat(dir)
+
+	if statErr != nil {
+		if os.IsNotExist(statErr) {
+			return "", fmt.Errorf("%s does not exist", dir)
+		}
+		return "", statErr
+	}
+
+	if !info.IsDir() {
+		return "", fmt.Errorf("%s is not a directory", dir)
+	}
+
+	return dir, nil
 }

@@ -1,20 +1,24 @@
 package cmdline
 
 import (
-	"postfiles/log"
+	"fmt"
 
 	"github.com/spf13/cobra"
 )
 
-const (
-	cliName    = "postfiles"
-	cliVersion = "v1.2.2"
+var (
+	BuildVersion = "dev"
+	BuildCommit  = "none"
+	BuildTime    = "unknown"
 )
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Display version",
 	Run: func(cmd *cobra.Command, args []string) {
-		log.PrintToOut("%s - %s\n", cliName, cliVersion)
+		fmt.Println("postfiles")
+		fmt.Printf("  Version: %s\n", BuildVersion)
+		fmt.Printf("  Commit:  %s\n", BuildCommit)
+		fmt.Printf("  Built:   %s\n", BuildTime)
 	},
 }

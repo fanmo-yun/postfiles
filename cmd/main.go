@@ -1,10 +1,11 @@
 package main
 
 import (
+	"postfiles/cmdline"
 	"postfiles/utils"
 )
 
 func main() {
-	utils.IsTerminal()
-	CliExecute()
+	utils.IsTerm()
+	cmdline.Execute()
 }

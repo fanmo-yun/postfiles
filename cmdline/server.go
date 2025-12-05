@@ -1,9 +1,11 @@
 package cmdline
 
 import (
-	"postfiles/log"
+	"log/slog"
+	"net"
 	"postfiles/server"
 	"postfiles/utils"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -19,19 +21,24 @@ var serverCmd = &cobra.Command{
 	Short: "Run as server",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(serverFiles) == 0 {
-			log.PrintToErr("Server: No files provided to serve\n")
-			cmd.Usage()
+			slog.Error("server: no files provided to serve")
+			if err := cmd.Usage(); err != nil {
+				slog.Error("server: usage print failed", "err", err)
+				return
+			}
 			return
 		}
 
-		ip, port, validateErr := utils.ValidateIPAndPort(serverIP, serverPort)
-		if validateErr != nil {
-			log.PrintToErr("Server: Error validating IP and port\n")
+		ip, port, err := utils.Check(serverIP, serverPort)
+		if err != nil {
+			slog.Error("validating IP and port failed", "err", err)
 			return
 		}
-		server := server.NewServer(ip, port, serverFiles)
+
+		address := net.JoinHostPort(ip, strconv.Itoa(port))
+		server := server.NewServer(address, serverFiles)
 		if err := server.Start(); err != nil {
-			log.PrintToErr("Server Fatal: %s\n", err)
+			slog.Error("server fatal", "err", err)
 			return
 		}
 	},

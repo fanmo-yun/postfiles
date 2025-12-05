@@ -1,7 +1,7 @@
 package cmdline
 
 import (
-	"postfiles/log"
+	"log/slog"
 
 	"github.com/spf13/cobra"
 )
@@ -17,19 +17,19 @@ func Execute() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
 	rootCmd.AddCommand(serverCmd)
-	serverCmd.Flags().StringVarP(&serverIP, "ip", "i", "", "IP Address (default \"Ip currently in use\")")
-	serverCmd.Flags().IntVarP(&serverPort, "port", "p", 8877, "Port Number")
-	serverCmd.Flags().StringSliceVarP(&serverFiles, "file", "f", make([]string, 0, 10), "Files to serve")
-
 	rootCmd.AddCommand(clientCmd)
-	clientCmd.Flags().StringVarP(&clientIP, "ip", "i", "", "IP Address (default \"Ip currently in use\")")
-	clientCmd.Flags().IntVarP(&clientPort, "port", "p", 8877, "Port Number")
-	clientCmd.Flags().StringVarP(&clientSavePath, "save", "s", "System Download Path", "Save Path")
-
 	rootCmd.AddCommand(versionCmd)
 
+	serverCmd.Flags().StringVarP(&serverIP, "ip", "i", "", "IP Address (default: auto)")
+	serverCmd.Flags().IntVarP(&serverPort, "port", "p", 8877, "Port Number")
+	serverCmd.Flags().StringSliceVarP(&serverFiles, "file", "f", nil, "Files to serve")
+
+	clientCmd.Flags().StringVarP(&clientIP, "ip", "i", "", "IP Address (default: auto)")
+	clientCmd.Flags().IntVarP(&clientPort, "port", "p", 8877, "Port Number")
+	clientCmd.Flags().StringVarP(&clientSavePath, "save", "s", "", "Save Path")
+
 	if executeErr := rootCmd.Execute(); executeErr != nil {
-		log.PrintToErr("Cli exec error: %s\n", executeErr)
+		slog.Error("cli execute failed", "err", executeErr)
 		return
 	}
 }
