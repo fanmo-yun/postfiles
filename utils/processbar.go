@@ -11,7 +11,10 @@ import (
 )
 
 func NewBar(size int64, name string) (*progressbar.ProgressBar, error) {
-	desc := fitText(name)
+	desc, err := fitText(name)
+	if err != nil {
+		return nil, err
+	}
 	bar := progressbar.NewOptions64(
 		size,
 		progressbar.OptionSetDescription(desc),
@@ -43,14 +46,14 @@ func textWidth(s string) int {
 	return w
 }
 
-func fitText(s string) string {
+func fitText(s string) (string, error) {
 	w := termWidth()
 	target := w * 30 / 100
 
 	return clipOrPad(s, target)
 }
 
-func clipOrPad(s string, limit int) string {
+func clipOrPad(s string, limit int) (string, error) {
 	cur := textWidth(s)
 
 	if cur > limit {
@@ -61,16 +64,18 @@ func clipOrPad(s string, limit int) string {
 			if w+rw > limit-3 {
 				break
 			}
-			b.WriteRune(r)
+			if _, err := b.WriteRune(r); err != nil {
+				return "", err
+			}
 			w += rw
 		}
-		b.WriteString("...")
-		return b.String()
+		_, err := b.WriteString("...")
+		return b.String(), err
 	}
 
 	if cur < limit {
-		return s + strings.Repeat(" ", limit-cur)
+		return s + strings.Repeat(" ", limit-cur), nil
 	}
 
-	return s
+	return s, nil
 }
