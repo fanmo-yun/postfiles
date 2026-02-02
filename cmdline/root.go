@@ -28,8 +28,8 @@ func Execute() {
 	clientCmd.Flags().IntVarP(&clientPort, "port", "p", 8877, "Port Number")
 	clientCmd.Flags().StringVarP(&clientSavePath, "save", "s", "", "Save Path")
 
-	if executeErr := rootCmd.Execute(); executeErr != nil {
-		slog.Error("cli execute failed", "err", executeErr)
+	if err := rootCmd.Execute(); err != nil {
+		slog.Error("cli execute failed", "err", err)
 		return
 	}
 }

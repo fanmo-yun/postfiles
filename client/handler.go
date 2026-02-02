@@ -17,8 +17,8 @@ func (c *Client) handleTransfer(conn net.Conn) {
 	reader := bufio.NewReaderSize(conn, 32*1024)
 	writer := bufio.NewWriterSize(conn, 32*1024)
 
-	if fetchErr := c.fetchList(reader); fetchErr != nil {
-		slog.Error("fetch list failed", "err", fetchErr)
+	if err := c.fetchList(reader); err != nil {
+		slog.Error("fetch list failed", "err", err)
 		return
 	}
 
@@ -27,17 +27,17 @@ func (c *Client) handleTransfer(conn net.Conn) {
 		return
 	}
 
-	if sendErr := c.sendConfirm(writer); sendErr != nil {
-		slog.Error("send confirm failed", "err", sendErr)
+	if err := c.sendConfirm(writer); err != nil {
+		slog.Error("send confirm failed", "err", err)
 		return
 	}
 
 	for len(c.fileMap) > 0 {
-		if recvErr := c.recvFile(reader, writer); recvErr != nil {
-			if errors.Is(recvErr, os.ErrExist) {
+		if err := c.recvFile(reader, writer); err != nil {
+			if errors.Is(err, os.ErrExist) {
 				continue
 			}
-			slog.Error("file receive failed", "err", recvErr)
+			slog.Error("file receive failed", "err", err)
 			return
 		}
 	}
@@ -46,8 +46,8 @@ func (c *Client) handleTransfer(conn net.Conn) {
 func (c *Client) fetchList(reader *bufio.Reader) error {
 	for {
 		recvPkt := new(protocol.Packet)
-		if readErr := recvPkt.ReadAndDecode(reader); readErr != nil {
-			return readErr
+		if err := recvPkt.ReadAndDecode(reader); err != nil {
+			return err
 		}
 
 		switch recvPkt.DataType {
@@ -79,8 +79,8 @@ func (c *Client) printList() bool {
 
 func (c *Client) askConfirm() bool {
 	fmt.Print("Confirm accept[Y/n]: ")
-	confirm, readinErr := utils.Readin()
-	if readinErr != nil {
+	confirm, err := utils.Readin()
+	if err != nil {
 		return false
 	}
 
@@ -90,16 +90,16 @@ func (c *Client) askConfirm() bool {
 
 func (c *Client) sendConfirm(writer *bufio.Writer) error {
 	confirmPkt := protocol.NewPacket(protocol.ConfirmAccept, "", 0)
-	if confirmErr := confirmPkt.EncodeAndWrite(writer); confirmErr != nil {
-		return confirmErr
+	if err := confirmPkt.EncodeAndWrite(writer); err != nil {
+		return err
 	}
 	return writer.Flush()
 }
 
 func (c *Client) recvFile(reader *bufio.Reader, writer *bufio.Writer) error {
 	metaPkt := new(protocol.Packet)
-	if metaErr := metaPkt.ReadAndDecode(reader); metaErr != nil {
-		return metaErr
+	if err := metaPkt.ReadAndDecode(reader); err != nil {
+		return err
 	}
 
 	filesize, ok := c.fileMap[metaPkt.FileName]
@@ -117,61 +117,61 @@ func (c *Client) recvFile(reader *bufio.Reader, writer *bufio.Writer) error {
 	if fstat, err := c.saveDir.Stat(metaPkt.FileName); err == nil && !fstat.IsDir() {
 		fmt.Printf("--skip-- %s <-- %s\n", metaPkt.FileName, os.ErrExist)
 		rejPkt := protocol.NewPacket(protocol.RejectFile, "", 0)
-		if writeErr := rejPkt.EncodeAndWrite(writer); writeErr != nil {
-			return writeErr
+		if err := rejPkt.EncodeAndWrite(writer); err != nil {
+			return err
 		}
-		if flushErr := writer.Flush(); flushErr != nil {
-			return flushErr
+		if err := writer.Flush(); err != nil {
+			return err
 		}
 		deleteFlag = false
 		return os.ErrExist
 	}
 
 	accPkt := protocol.NewPacket(protocol.AcceptFile, "", 0)
-	if writeErr := accPkt.EncodeAndWrite(writer); writeErr != nil {
-		return writeErr
+	if err := accPkt.EncodeAndWrite(writer); err != nil {
+		return err
 	}
-	if flushErr := writer.Flush(); flushErr != nil {
-		return flushErr
+	if err := writer.Flush(); err != nil {
+		return err
 	}
 
-	file, createErr := c.saveDir.Create(metaPkt.FileName)
-	if createErr != nil {
+	file, err := c.saveDir.Create(metaPkt.FileName)
+	if err != nil {
 		deleteFlag = false
-		return fmt.Errorf("%s cannot be create: %s", metaPkt.FileName, createErr)
+		return fmt.Errorf("%s cannot be create: %s", metaPkt.FileName, err)
 	}
 	defer file.Close()
 
-	pb, pbErr := utils.NewBar(filesize, metaPkt.FileName)
-	if pbErr != nil {
+	pb, err := utils.NewBar(filesize, metaPkt.FileName)
+	if err != nil {
 		deleteFlag = false
 		rejPkt := protocol.NewPacket(protocol.RejectFile, "", 0)
-		if writeErr := rejPkt.EncodeAndWrite(writer); writeErr != nil {
-			return writeErr
+		if err := rejPkt.EncodeAndWrite(writer); err != nil {
+			return err
 		}
-		if flushErr := writer.Flush(); flushErr != nil {
-			return flushErr
+		if err := writer.Flush(); err != nil {
+			return err
 		}
-		return fmt.Errorf("progress bar error: %w", pbErr)
+		return fmt.Errorf("progress bar error: %w", err)
 	}
 	mw := io.MultiWriter(file, pb)
-	if n, copyErr := io.CopyN(mw, reader, filesize); copyErr != nil {
+	if n, err := io.CopyN(mw, reader, filesize); err != nil {
 		deleteFlag = false
-		if errors.Is(copyErr, io.EOF) {
+		if errors.Is(err, io.EOF) {
 			return fmt.Errorf("unexpected EOF: got %d bytes, expected %d", n, filesize)
 		}
-		return fmt.Errorf("copy file data failed: %w", copyErr)
+		return fmt.Errorf("copy file data failed: %w", err)
 	}
 	return nil
 }
 
 func (c *Client) ValidateWritable() error {
-	file, tmpErr := os.CreateTemp(c.saveDir.Name(), "write.tmp")
-	if tmpErr != nil {
+	file, err := os.CreateTemp(c.saveDir.Name(), "write.tmp")
+	if err != nil {
 		return fmt.Errorf("%s path is not writable", c.saveDir.Name())
 	}
 	file.Close()
-	if removeErr := os.Remove(file.Name()); removeErr != nil {
+	if err := os.Remove(file.Name()); err != nil {
 		return fmt.Errorf("%s path is not writable", c.saveDir.Name())
 	}
 	return nil

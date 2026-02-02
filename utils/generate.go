@@ -29,13 +29,13 @@ func GetDownloadDir() (string, error) {
 	}
 
 	dir := filepath.Join(home, "Downloads")
-	info, statErr := os.Stat(dir)
+	info, err := os.Stat(dir)
 
-	if statErr != nil {
-		if os.IsNotExist(statErr) {
+	if err != nil {
+		if os.IsNotExist(err) {
 			return "", fmt.Errorf("%s does not exist", dir)
 		}
-		return "", statErr
+		return "", err
 	}
 
 	if !info.IsDir() {

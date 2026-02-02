@@ -39,13 +39,13 @@ func (p *Packet) EncodeAndWrite(w *bufio.Writer) error {
 
 func (p *Packet) ReadAndDecode(r *bufio.Reader) error {
 	var pktLen uint32
-	if readErr := binary.Read(r, binary.LittleEndian, &pktLen); readErr != nil {
-		return readErr
+	if err := binary.Read(r, binary.LittleEndian, &pktLen); err != nil {
+		return err
 	}
 	decBuf := make([]byte, pktLen)
-	_, readErr := io.ReadFull(r, decBuf)
-	if readErr != nil {
-		return readErr
+	_, err := io.ReadFull(r, decBuf)
+	if err != nil {
+		return err
 	}
 	return p.decode(decBuf)
 }

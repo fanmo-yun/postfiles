@@ -28,29 +28,29 @@ var clientCmd = &cobra.Command{
 			return
 		}
 		if clientSavePath == "" {
-			sp, getErr := utils.GetDownloadDir()
-			if getErr != nil {
-				slog.Error("failed to get download path", "err", getErr)
+			sp, err := utils.GetDownloadDir()
+			if err != nil {
+				slog.Error("failed to get download path", "err", err)
 				return
 			}
 			clientSavePath = sp
 		}
 
 		saveDir := filepath.Clean(clientSavePath)
-		root, rootErr := os.OpenRoot(saveDir)
-		if rootErr != nil {
-			slog.Error("failed to open root", "err", rootErr)
+		root, err := os.OpenRoot(saveDir)
+		if err != nil {
+			slog.Error("failed to open root", "err", err)
 			return
 		}
 
 		address := net.JoinHostPort(ip, strconv.Itoa(port))
 		client := client.NewClient(address, root)
-		if validateErr := client.ValidateWritable(); validateErr != nil {
-			slog.Error("failed to validate save path", "err", validateErr)
+		if err := client.ValidateWritable(); err != nil {
+			slog.Error("failed to validate save path", "err", err)
 			return
 		}
-		if connectErr := client.Start(); connectErr != nil {
-			slog.Error("client fatal", "err", connectErr)
+		if err := client.Start(); err != nil {
+			slog.Error("client fatal", "err", err)
 			return
 		}
 	},

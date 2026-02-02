@@ -22,11 +22,15 @@ func NewClient(address string, saveDir *os.Root) *Client {
 
 func (c *Client) Start() error {
 	defer c.saveDir.Close()
-	conn, connErr := net.Dial("tcp", c.address)
-	if connErr != nil {
-		return connErr
+	conn, err := net.Dial("tcp", c.address)
+	if err != nil {
+		return err
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			slog.Error("conn close error", "err", err)
+		}
+	}()
 	slog.Info("Client start", "address", c.address, "save_dir", c.saveDir.Name())
 
 	c.handleTransfer(conn)

@@ -15,12 +15,16 @@ func (s *Server) Shutdown(
 	<-ctx.Done()
 	slog.Warn("Shutting down server...")
 
-	_ = listener.Close()
+	if err := listener.Close(); err != nil {
+		slog.Error("server close error", "err", err)
+	}
 	slog.Warn("Stopping server...")
 
 	s.connMap.Range(func(_, v any) bool {
 		conn := v.(net.Conn)
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			slog.Error("conn close error", "err", err)
+		}
 		return true
 	})
 
